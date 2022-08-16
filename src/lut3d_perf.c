@@ -1,6 +1,7 @@
 #include "lut3d_perf.h"
 #include "parse_lut.c"
 #include "deps/tinyexr.h"
+#include <stdio.h>
 
 #include <immintrin.h>
 
@@ -10,16 +11,24 @@
 typedef int (apply_lut_func)(const LUT3DContext *lut3d, const FloatImage *src_image,  FloatImage *dst_image);
 typedef int (apply_lut_rgba_func)(const LUT3DContext *lut3d, const FloatImageRGBA *src_image,  FloatImageRGBA *dst_image);
 
-
 typedef struct EXR {
     EXRImage image;
     EXRHeader header;
     EXRVersion version;
 } EXR;
 
+typedef struct  {
+    char *name;
+    double per_frame;
+    double elapse;
+} TestResult;
+
+
 #if _WIN32
 #include <windows.h>
 #include <intrin.h>
+#define strdup _strdup
+
 static uint64_t get_timer_frequency()
 {
     LARGE_INTEGER Result;
@@ -106,26 +115,28 @@ int alloc_image(FloatImage *image, int width, int height)
     size_t plane_size = height * stride * sizeof(float);
     size_t size = plane_size * 4;
 
-    if (image->mem)
-        free(image->mem);
+    if (image->width != width || image->height != height || image->stride != stride) {
 
-    image->mem = malloc(size);
-    memset(image->mem, 0, size);
+        if (image->mem)
+            free(image->mem);
 
-    uint8_t *p = image->mem;
-    image->data[0] = (float*)p;
-    p += plane_size;
+        image->mem = malloc(size);
+        memset(image->mem, 0, size);
 
-    image->data[1] = (float*)p;
-    p += plane_size;
+        uint8_t *p = image->mem;
+        image->data[0] = (float*)p;
+        p += plane_size;
 
-    image->data[2] = (float*)p;
-    p += plane_size;
+        image->data[1] = (float*)p;
+        p += plane_size;
 
-    image->data[3] = (float*)p;
+        image->data[2] = (float*)p;
+        p += plane_size;
+
+        image->data[3] = (float*)p;
+    }
 
     // fill alpha with 1;
-
     for (int y =0; y < height; y++) {
         float *a = image->data[3] + (y * stride);
         for (int x =0; x < width; x++) {
@@ -142,16 +153,18 @@ int alloc_image(FloatImage *image, int width, int height)
 
 int alloc_image_rgba(FloatImageRGBA *image, int width, int height)
 {
-    if (image->data) {
-        free(image->data);
-    }
-
     size_t size = width*height * sizeof(float) * 4;
 
-    image->data = (float*)malloc(size);
+    if (image->width != width || image->height != height) {
+
+        if (image->data)
+            free(image->data);
+
+        image->data = (float*)malloc(size);
+    }
+
     image->width = width;;
     image->height = height;
-
     memset(image->data, 0, size);
 
     return 0;
@@ -328,10 +341,32 @@ void write_exr(FloatImage *image, char *path)
     free(data);
 }
 
-static int cmp_images(FloatImage *a, FloatImage *b)
+int write_test_results(char *csv_path, TestResult *test_results, int count)
 {
+    FILE *f = fopen("results.csv", "wb");
+    if (!f) {
+        printf("error opening: %s\n", "results.csv");
+        return -1;
+    }
+    char buffer[1024] = {0};
+    for (int i = 0; i < count; i++) {
+        int length = snprintf(buffer, 1024, "%s,%g\n", test_results[i].name, test_results[i].per_frame);
+        fwrite(buffer, 1, length, f);
+    }
+    fclose(f);
 
+    return 0;
+}
+
+typedef struct CMPResult {
+    double avg_error;
+    double max_error;
+} CMPResult;
+
+static inline CMPResult cmp_images(FloatImage *a, FloatImage *b)
+{
     int ret = 0;
+    CMPResult result = {0};
 
     double err = 0;
     double max_error = 0.0f;
@@ -358,14 +393,13 @@ static int cmp_images(FloatImage *a, FloatImage *b)
                 err += pixel_err;
                 a_v++;
                 b_v++;
-
             }
         }
     }
 
-    printf("  avg_error: %.12f\n", err / (a->width * a->height * 3));
-    printf("  max_error: %.12f\n", max_error);
-    return ret;
+    result.avg_error = err / (a->width * a->height * 3);
+    result.max_error = max_error;
+    return result;
 }
 
 static int planer_to_rgba(FloatImage *src, FloatImageRGBA *dst)
@@ -503,19 +537,212 @@ void print_cpu()
     printf("CPU: %s\n", CPU);
 }
 
-typedef struct  {
-    char *name;
-    double per_frame;
-    double elapse;
-} TestResult;
-
-int main(int argc, char *argv[])
+inline float rand_float_range(float a, float b)
 {
-    if(argc < 3) {
-        printf("not enough args\n");
-        return -1;
+    assert(a < b);
+    float v = (float)rand()/(float)(RAND_MAX);
+    v *= (b - a);
+    v -= a;
+    return v;
+}
+
+
+inline void rand_float_image(FloatImage *img)
+{
+    int width = img->width;
+    int height = img->height;
+
+    for (int y = 0; y < height; y++) {
+        size_t offset =  y * img->stride;
+        for(int x = 0; x < width; x++) {
+
+#if 0
+            union av_intfloat32 v;
+            v.i = rand();
+            img->data[0][offset + x] = v.f;
+            v.i = rand();
+            img->data[1][offset + x] = v.f;
+            v.i = rand();
+            img->data[2][offset + x] = v.f;
+            v.i = rand();
+            img->data[3][offset + x] = v.f;
+#else
+            img->data[0][offset + x] = rand_float_range(-0.05, 2.0f);
+            img->data[1][offset + x] = rand_float_range(-0.05, 2.0f);
+            img->data[2][offset + x] = rand_float_range(-0.05, 2.0f);
+            img->data[3][offset + x] = rand_float_range(-0.05, 2.0f);
+#endif
+        }
+    }
+}
+
+
+static void rand_lut(LUT3DContext *lut3d)
+{
+    int lutsize = lut3d->lutsize;
+    for (int i = 0; i < lutsize*lutsize*lutsize; i++) {
+        lut3d->lut[i].r = rand_float_range(0.0f, 1.0f);
+        lut3d->lut[i].g = rand_float_range(0.0f, 1.0f);
+        lut3d->lut[i].b = rand_float_range(0.0f, 1.0f);
+
+        lut3d->rgba_lut[i].r = lut3d->lut[i].r;
+        lut3d->rgba_lut[i].g = lut3d->lut[i].g;
+        lut3d->rgba_lut[i].b = lut3d->lut[i].b;
+        lut3d->rgba_lut[i].a = 0.0f;
+    }
+}
+
+static void rand_prelut(LUT3DContext *lut3d)
+{
+    Lut3DPreLut *prelut = &lut3d->prelut;
+
+    for (int c = 0; c < 3; c++) {
+
+        prelut->min[c] = INFINITY;
+        prelut->max[c] = -INFINITY;
+
+        for (int i = 0; i < prelut->size; i++) {
+            float v =  rand_float_range(-0.05f, 2.0f);
+            prelut->lut[c][i] = v;
+            prelut->min[c] = FFMIN(v, prelut->min[c]);
+            prelut->max[c] = FFMAX(v, prelut->max[c]);
+
+        }
+
+        prelut->scale[c] =  (1.0f / (prelut->max[c] - prelut->min[c])) * (float)(prelut->size - 1);
+        // diff between min and max cannot exceed FLT_MAX
+        assert(!isinf(prelut->scale[c]));
     }
 
+    lut3d->scale.r = 1.00f;
+    lut3d->scale.g = 1.00f;
+    lut3d->scale.b = 1.00f;
+}
+
+int LUT_SIZES[] = {32, 64};
+
+
+static int random_lut_test()
+{
+    uint64_t freq = get_timer_frequency();
+    LUT3DContext lut3d = {0};
+
+    FloatImage src_image = {0};
+    FloatImage dst_image = {0};
+    FloatImage ref_image = {0};
+
+    FloatImageRGBA src_image_rgba = {0};
+    FloatImageRGBA dst_image_rgba = {0};
+
+    char test_name[1024] = {0};
+
+    char result_name_png[1024] = {0};
+    char result_name_exr[1024] = {0};
+
+
+    int test_count = ARRAY_SIZE(LUT_SIZES) * ARRAY_SIZE(LUTS);
+    TestResult *test_results = (TestResult*)malloc(test_count * sizeof(TestResult));
+    TestResult *test_result = test_results;
+
+    print_cpu();
+    uint64_t test_start = get_timer();
+
+    for (int l = 0; l < ARRAY_SIZE(LUT_SIZES); l++) {
+        int lutsize = LUT_SIZES[l];
+        int image_width = 1024;
+        int image_height = 1024;
+
+        allocate_3dlut(&lut3d, lutsize, 1);
+
+        for (int i = 0; i < ARRAY_SIZE(LUTS); i++) {
+            uint64_t dur = 0;
+            uint64_t start = 0;
+            uint64_t end = 0;
+
+            LutTestItem *test = &LUTS[i];
+            srand(0);
+
+            int random_lut_count = 5;
+            int runs = 50;
+
+            snprintf(test_name, 1024, "%s_%dx%d_%dx%dx%d",test->name, image_width, image_height, lutsize,lutsize,lutsize);
+
+            printf("%s random luts: %d runs: %d\n", test_name, random_lut_count, runs);
+            fflush(stdout);
+
+            CMPResult cmp = {0};
+
+            for (int j=0; j < random_lut_count; j++) {
+                alloc_image(&src_image, image_width, image_height);
+                alloc_image(&ref_image, image_width, image_height);
+
+                rand_float_image(&src_image);
+                planer_to_rgba(&src_image, &src_image_rgba);
+
+                alloc_image(&dst_image,           src_image.width, src_image.height);
+                alloc_image_rgba(&dst_image_rgba, src_image.width, src_image.height);
+
+                rand_lut(&lut3d);
+                rand_prelut(&lut3d);
+
+                if (test->apply_lut) {
+                    start = get_timer();
+                    for (int k = 0; k < runs; k++){
+                        test->apply_lut(&lut3d, &src_image, &dst_image);
+                    }
+                    end = get_timer();
+                } else {
+                    start = get_timer();
+                    for (int k = 0; k < runs; k++){
+                        test->apply_lut_rgba(&lut3d, &src_image_rgba, &dst_image_rgba);
+                    }
+                    end = get_timer();
+
+                    rgba_to_planer(&dst_image_rgba, &dst_image);
+                }
+                dur += (end - start);
+
+                apply_lut_c(&lut3d, &src_image, &ref_image);
+                CMPResult r = cmp_images(&ref_image, &dst_image);
+                cmp.max_error = FFMAX(r.max_error, cmp.max_error);
+                cmp.avg_error += r.avg_error;
+#if 0
+                snprintf(result_name_png, 1024, "%s.%04d.png", test_name, j);
+                snprintf(result_name_exr, 1024, "%s.%04d.exr", test_name, j);
+                write_png(&dst_image, result_name_png);
+                write_exr(&dst_image, result_name_exr);
+#endif
+            }
+
+            cmp.avg_error /= runs;
+
+            double elapse    = (double)dur / (double)freq;
+            double per_frame = elapse / ((double)random_lut_count * (double)runs);
+
+            printf("  elapse   : %f secs\n", elapse);
+            printf("  per_frame: %0.016f secs\n", per_frame);
+            printf("  avg_error: %.12f\n", cmp.avg_error);
+            printf("  max_error: %.12f\n", cmp.max_error);
+            printf("\n");
+            fflush(stdout);
+
+            test_result->name = strdup(test_name);
+            test_result->per_frame = per_frame;
+            test_result->elapse = elapse;
+            test_result++;
+        }
+    }
+
+    write_test_results("rand_results.csv", test_results, test_count);
+
+    double test_elapse = (double)(get_timer() - test_start)/ (double)freq;
+    printf("tests ran in %f secs\n", test_elapse);
+
+    return 0;
+}
+
+int exr_image_test(int argc, char *argv[])
+{
     int ret;
 
     EXR exr = {0};
@@ -583,7 +810,7 @@ int main(int argc, char *argv[])
 
     write_png(&src_image, "original.png");
 
-    int runs = 100;
+    int runs = 2;
     apply_lut_c(&lut3d, &src_image, &cmp_image);
 
     // rgba_to_planer(&src_image_rgba, &src_image);
@@ -592,7 +819,7 @@ int main(int argc, char *argv[])
     printf("lut: %s\n", lut_path);
     printf("exr: %s\n", exr_path);
 
-    TestResult *test_results = (TestResult*)malloc(  ARRAY_SIZE(LUTS) * sizeof(TestResult));
+    TestResult *test_results = (TestResult*)malloc(ARRAY_SIZE(LUTS) * sizeof(TestResult));
 
     for (int i = 0; i < ARRAY_SIZE(LUTS); i++) {
 
@@ -618,15 +845,18 @@ int main(int argc, char *argv[])
         double elapse    = (double)dur / (double)freq;
         double per_frame = elapse / (double)runs;
 
-        printf("  elapse   : %f secs\n", elapse);
-        printf("  perframe : %0.016f secs\n", per_frame);
         if (test->apply_lut) {
             test->apply_lut(&lut3d, &src_image, &dst_image);
         } else {
             test->apply_lut_rgba(&lut3d, &src_image_rgba, &dst_image_rgba);
             rgba_to_planer(&dst_image_rgba, &dst_image);
         }
-        cmp_images(&dst_image, &cmp_image);
+
+        CMPResult cmp = cmp_images(&dst_image, &cmp_image);
+        printf("  elapse   : %f secs\n", elapse);
+        printf("  per_frame: %0.016f secs\n", per_frame);
+        printf("  avg_error: %.12f\n", cmp.avg_error);
+        printf("  max_error: %.12f\n", cmp.max_error);
         printf("\n");
         fflush(stdout);
 
@@ -640,17 +870,31 @@ int main(int argc, char *argv[])
         test_results[i].elapse    = elapse;
     }
 
-    FILE *f = fopen("results.csv", "wb");
-    if (!f) {
-        printf("error opening: %s\n", "results.csv");
-        return -1;
-    }
-    char buffer[1024] = {0};
-    for (int i = 0; i < ARRAY_SIZE(LUTS); i++) {
-        int length = snprintf(buffer, 1024, "%s,%g\n", test_results[i].name, test_results[i].per_frame);
-        fwrite(buffer, 1, length, f);
-    }
-    fclose(f);
+    write_test_results("results.csv", test_results,  ARRAY_SIZE(LUTS));
 
     return 0;
+}
+
+
+void print_usage()
+{
+    printf("Usage: lut3d_perf [EXR] [LUT]\n"
+           "Performance tests for various tetrahedral 3D lut implementations\n"
+           "If run with zero arguments will run test with randomly generated \n"
+           "images and randomly generated luts\n");
+}
+
+int main(int argc, char *argv[])
+{
+    if(argc == 1) {
+        return random_lut_test();
+    }
+
+    if(argc != 3) {
+        printf("not enough args\n");
+        print_usage();
+        return -1;
+    }
+
+    return exr_image_test(argc, argv);
 }

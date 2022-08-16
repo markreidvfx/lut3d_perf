@@ -407,9 +407,9 @@ try_again:
         }
     }
 
-    lut3d->scale.r = av_clipf(1. / (max[0] - min[0]), 0.f, 1.f);
-    lut3d->scale.g = av_clipf(1. / (max[1] - min[1]), 0.f, 1.f);
-    lut3d->scale.b = av_clipf(1. / (max[2] - min[2]), 0.f, 1.f);
+    lut3d->scale.r = av_clipf(1.0f / (max[0] - min[0]), 0.f, 1.f);
+    lut3d->scale.g = av_clipf(1.0f / (max[1] - min[1]), 0.f, 1.f);
+    lut3d->scale.b = av_clipf(1.0f / (max[2] - min[2]), 0.f, 1.f);
 
     return 0;
 }
