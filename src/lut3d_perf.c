@@ -21,6 +21,19 @@ static inline int64_t get_extended_control_reg(int index)
     return  (int64_t)hi << 32 | (int64_t)low;
 }
 #undef xgetbv_asm
+
+// Inline cpuid instruction.  In PIC compilations, %ebx contains the address
+// of the global offset table.  To avoid breaking such executables, this code
+// must preserve that register's value across cpuid instructions.
+#define __cpuid__(index, eax, ebx, ecx, edx)                        \
+    __asm__ volatile (                                          \
+        "mov    %%rbx, %%rsi \n\t"                              \
+        "cpuid               \n\t"                              \
+        "xchg   %%rbx, %%rsi"                                   \
+        : "=a" (eax), "=S" (ebx), "=c" (ecx), "=d" (edx)        \
+        : "0" (index), "2"(0))
+
+
 #endif
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -87,13 +100,14 @@ static uint64_t get_timer(void)
 void cpuid(int index, int *data)
 {
 #if _WIN32
-        __cpuid(data, index);
+    __cpuid(data, index);
 #else
-        __get_cpuid(index,
-                    (int unsigned *)(data + 0),
-                    (int unsigned *)(data + 1),
-                    (int unsigned *)(data + 2),
-                    (int unsigned *)(data + 3));
+    int eax, ebx, ecx, edx;
+    __cpuid__(index, eax, ebx, ecx, edx);
+    data[0] = eax;
+    data[1] = ebx;
+    data[2] = ecx;
+    data[3] = edx;
 #endif
 }
 
@@ -906,7 +920,7 @@ int exr_image_test(int argc, char *argv[])
 
     write_png(&src_image, "original.png");
 
-    int runs = 2;
+    int runs = 100;
     apply_lut_c(&lut3d, &src_image, &cmp_image);
 
     // rgba_to_planer(&src_image_rgba, &src_image);
