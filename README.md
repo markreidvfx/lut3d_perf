@@ -18,7 +18,7 @@ It would be nice to have a ARM NEON implementation at some point.
 - FFmpeg SSE2 assembly
 
 ## Requirements
-- yasm
+- [yasm](https://yasm.tortall.net)
 - msvc, gcc or clang
 
 ## Test Results
@@ -29,3 +29,25 @@ It would be nice to have a ARM NEON implementation at some point.
 
 AVX intrinsic version can produce slower/similar speed code to SSE2 on some compilers when compared to the AVX assembly version.
 Still investigating why.
+
+## Testing
+
+### Linux / macOS / MSYS2
+
+From a terminal run
+
+```bash
+make test_rand
+make test_lut1
+make test_lut2
+```
+
+### Windows MSVC
+
+From the **MSVC x64 native tools** command prompt run
+
+```cmd
+build_msvc.bat test_rand
+build_msvc.bat test_lut1
+build_msvc.bat test_lut2
+```

@@ -2,6 +2,7 @@
 #include "parse_lut.c"
 #include "deps/tinyexr.h"
 #include <stdio.h>
+#include <ctype.h>
 
 #include <immintrin.h>
 
@@ -765,9 +766,10 @@ int exr_image_test(int argc, char *argv[])
     uint64_t end = 0;
 
     ret = read_exr(exr_path, &exr);
-    if (ret)
+    if (ret) {
+        printf("unable to read EXR: %s\n", exr_path);
         return -1;
-
+    }
     ret = find_rgba(&exr, &src_image);
     if (ret) {
         printf("unable to find RGB channels\n");
@@ -891,7 +893,7 @@ int main(int argc, char *argv[])
     }
 
     if(argc != 3) {
-        printf("not enough args\n");
+        printf("not enough args %d != 3\n", argc);
         print_usage();
         return -1;
     }

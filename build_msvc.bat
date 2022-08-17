@@ -12,14 +12,17 @@ if "%Platform%" neq "x64" (
 )
 
 set ROOT=%~dp0
-set BUILD_DIR="%ROOT%\build"
+set BUILD_DIR="%ROOT%\build\msvc"
 set SRC_DIR="%ROOT%\src"
-set RESULT_DIR="%ROOT%\results_msvc"
+set RESULT_DIR="%ROOT%\results\msvc"
 
-set SAMPLES_DIR="%ROOT%\samples"
+IF "%1"=="clean" (
+  rmdir /s /q %BUILD_DIR%
+  rmdir /s /q %RESULT_DIR%
+  goto :EOF
+)
 
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
-if not exist "%RESULT_DIR%" mkdir "%RESULT_DIR%"
 
 pushd %BUILD_DIR%
 
@@ -33,25 +36,37 @@ set ASM_CFLAGS=--parser=nasm --oformat=win64  %ASM_CFLAGS%
 %ROOT%\tools\yasm.exe -g cv8 %ASM_CFLAGS% -o lut3d_asm_debug.obj %SRC_DIR%\lut3d.asm || goto :error
 %ROOT%\tools\yasm.exe %ASM_CFLAGS% -o lut3d_asm_release.obj   %SRC_DIR%\lut3d.asm || goto :error
 
-call cl -D_DEBUG -Od /Z7 /MDd /c %SRC_DIR%\tetrahedral_ocio.cpp /Fotetrahedral_ocio_debug.obj %CFLAGS%  || goto :error
-call cl -O2 /c %SRC_DIR%\tetrahedral_ocio.cpp /Fotetrahedral_ocio_release.obj -I%SRC_DIR%\deps\miniz %CFLAGS% || goto :error
+cl -D_DEBUG -Od /Z7 /MDd /c %SRC_DIR%\tetrahedral_ocio.cpp /Fotetrahedral_ocio_debug.obj %CFLAGS%  || goto :error
+cl -O2 /c %SRC_DIR%\tetrahedral_ocio.cpp /Fotetrahedral_ocio_release.obj -I%SRC_DIR%\deps\miniz %CFLAGS% || goto :error
 
-call cl -D_DEBUG -Od /Z7 /MDd /c %SRC_DIR%\deps/tinyexr.cpp -I%SRC_DIR%\deps\miniz /Fotinyexr_debug.obj %CFLAGS% || goto :error
-call cl -O2 /c %SRC_DIR%\deps/tinyexr.cpp -I%SRC_DIR%\deps\miniz %CFLAGS% || goto :error
+cl -D_DEBUG -Od /Z7 /MDd /c %SRC_DIR%\deps/tinyexr.cpp -I%SRC_DIR%\deps\miniz /Fotinyexr_debug.obj %CFLAGS% || goto :error
+cl -O2 /c %SRC_DIR%\deps/tinyexr.cpp -I%SRC_DIR%\deps\miniz %CFLAGS% || goto :error
 
-call cl -D_DEBUG -Od /Z7 /MDd  -Felut3d_pref_debug_msvc.exe %CFLAGS%  %SRC_DIR%\lut3d_perf.c  /link %LDFLAGS% tinyexr_debug.obj lut3d_asm_debug.obj tetrahedral_ocio_debug.obj /subsystem:console || goto :error
-call cl -O2 -Fe..\lut3d_pref_release_msvc.exe %CFLAGS% %SRC_DIR%\lut3d_perf.c /link %LDFLAGS% tinyexr.obj lut3d_asm_release.obj tetrahedral_ocio_release.obj /subsystem:console || goto :error
+cl -D_DEBUG -Od /Z7 /MDd  -Felut3d_pref_debug_msvc.exe %CFLAGS% %SRC_DIR%\lut3d_perf.c /link %LDFLAGS% tinyexr_debug.obj lut3d_asm_debug.obj tetrahedral_ocio_debug.obj /subsystem:console || goto :error
+cl -O2 -Fe..\..\lut3d_pref_release_msvc.exe %CFLAGS% %SRC_DIR%\lut3d_perf.c /link %LDFLAGS% tinyexr.obj lut3d_asm_release.obj tetrahedral_ocio_release.obj /subsystem:console || goto :error
 
-set IMAGE=2A5A2701.0001.exr
-set LUT=ACES2065-1_to_Rec709.csp
-@REM set IMAGE=2A5A2701_SLog3.0001.exr
-@REM set LUT=SLog3_to_ACESRec709.cube
+IF "%1"=="test_rand" (
+  if not exist "%RESULT_DIR%\test_rand" mkdir "%RESULT_DIR%\test_rand"
+  pushd "%RESULT_DIR%\test_rand"
+  ..\..\..\lut3d_pref_release_msvc.exe || goto :error
+  popd
+)
 
-pushd %RESULT_DIR%
-call ..\lut3d_pref_release_msvc.exe %SAMPLES_DIR%\images\%IMAGE% %SAMPLES_DIR%\luts\%LUT%  || goto :error
+IF "%1"=="test_lut1" (
+  if not exist "%RESULT_DIR%\test_lut1" mkdir "%RESULT_DIR%\test_lut1"
+  pushd "%RESULT_DIR%\test_lut1"
+  ..\..\..\lut3d_pref_release_msvc.exe ..\..\..\samples\images\2A5A2701.0001.exr ..\..\..\samples\luts\ACES2065-1_to_Rec709.csp || goto :error
+  popd
+)
+
+IF "%1"=="test_lut2" (
+  if not exist "%RESULT_DIR%\test_lut2" mkdir "%RESULT_DIR%\test_lut2"
+  pushd "%RESULT_DIR%\test_lut2"
+  ..\..\..\lut3d_pref_release_msvc.exe ..\..\..\samples\images\2A5A2701_SLog3.0001.exr ..\..\..\samples\luts\SLog3_to_ACESRec709.cube  || goto :error
+  popd
+)
+
 popd
-popd
-
 goto :EOF
 
 :error
