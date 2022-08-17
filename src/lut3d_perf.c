@@ -6,6 +6,23 @@
 
 #include <immintrin.h>
 
+#ifdef _MSC_VER
+#define get_extended_control_reg _xgetbv
+#else
+
+#define xgetbv_asm(index, eax, edx)                                        \
+    __asm__ (".byte 0x0f, 0x01, 0xd0" : "=a"(eax), "=d"(edx) : "c" (index))
+
+static inline int64_t get_extended_control_reg(int index)
+{
+    int low = 0;
+    int hi = 0;
+    xgetbv_asm(0, low, hi);
+    return  (int64_t)hi << 32 | (int64_t)low;
+}
+#undef xgetbv_asm
+#endif
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
@@ -66,6 +83,82 @@ static uint64_t get_timer(void)
 #include "tetrahedral_avx.h"
 
 #include "tetrahedral_sse2.h"
+
+void cpuid(int index, int *data)
+{
+#if _WIN32
+        __cpuid(data, index);
+#else
+        __get_cpuid(index,
+                    (int unsigned *)(data + 0),
+                    (int unsigned *)(data + 1),
+                    (int unsigned *)(data + 2),
+                    (int unsigned *)(data + 3));
+#endif
+}
+
+union cpuid_data {
+    int i[4];
+    char c[16];
+    struct {
+        int eax;
+        int ebx;
+        int ecx;
+        int edx;
+    } reg;
+};
+
+typedef struct {
+    char name[65];
+    int has_sse2;
+    int has_avx;
+    int has_avx2;
+}CPUFeatures;
+
+
+static CPUFeatures get_cpu_features()
+{
+    CPUFeatures features = {0};
+    for(int index = 0; index < 3; index++) {
+      cpuid(0x80000002 + index, (int *)(features.name + 16*index));
+    }
+
+    union cpuid_data info;
+    cpuid(0, info.i);
+    int max_std_level = info.i[0];
+
+    if (max_std_level >= 1) {
+        cpuid(1, info.i);
+        if (info.reg.edx & (1 << 26)) {
+            features.has_sse2 = 1;
+        }
+        /* Check OXSAVE and AVX bits */
+        if ((info.reg.ecx & 0x18000000) == 0x18000000) {
+            int64_t xcr = get_extended_control_reg(0);
+            if(xcr & 0x6) {
+                features.has_avx = 1;
+            }
+        }
+    }
+
+    if (max_std_level >= 7) {
+        cpuid(7, info.i);
+        if (features.has_avx  && info.reg.ebx & 0x00000020) {
+            features.has_avx2 = 1;
+        }
+    }
+    printf("CPU: %s ", features.name);
+    if (features.has_sse2)
+        printf("+sse2");
+    if (features.has_avx)
+        printf("+avx");
+    if (features.has_avx2)
+        printf("+avx2");
+    printf("\n");
+    return features;
+}
+
+
 
 static int read_exr(char *filename, EXR *exr)
 {
@@ -519,25 +612,6 @@ void nan_nonesense()
 
 }
 
-void print_cpu()
-{
-    char CPU[65] = {0};
-    for(int index = 0; index < 3; index++)
-    {
-#if _WIN32
-        __cpuid((int *)(CPU + 16*index), 0x80000002 + index);
-#else
-        __get_cpuid(0x80000002 + index,
-                    (int unsigned *)(CPU + 16*index),
-                    (int unsigned *)(CPU + 16*index + 4),
-                    (int unsigned *)(CPU + 16*index + 8),
-                    (int unsigned *)(CPU + 16*index + 12));
-#endif
-    }
-
-    printf("CPU: %s\n", CPU);
-}
-
 inline float rand_float_range(float a, float b)
 {
     assert(a < b);
@@ -645,7 +719,8 @@ static int random_lut_test()
     TestResult *test_results = (TestResult*)malloc(test_count * sizeof(TestResult));
     TestResult *test_result = test_results;
 
-    print_cpu();
+    get_cpu_features();
+
     uint64_t test_start = get_timer();
 
     for (int l = 0; l < ARRAY_SIZE(LUT_SIZES); l++) {
@@ -817,7 +892,7 @@ int exr_image_test(int argc, char *argv[])
 
     // rgba_to_planer(&src_image_rgba, &src_image);
 
-    print_cpu();
+    get_cpu_features();
     printf("lut: %s\n", lut_path);
     printf("exr: %s\n", exr_path);
 
