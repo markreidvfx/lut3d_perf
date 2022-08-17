@@ -147,6 +147,11 @@ static CPUFeatures get_cpu_features()
             features.has_avx2 = 1;
         }
     }
+
+    // disable avx/avx2
+    // features.has_avx = 0;
+    // features.has_avx2 = 0;
+
     printf("CPU: %s ", features.name);
     if (features.has_sse2)
         printf("+sse2");
@@ -567,24 +572,26 @@ typedef struct {
     char *name;
     apply_lut_func *apply_lut;
     apply_lut_rgba_func *apply_lut_rgba;
+    int avx;
+    int avx2;
 } LutTestItem;
 
 int apply_lut_ocio_rgba(const LUT3DContext *lut3d, const FloatImageRGBA *src_image, FloatImageRGBA *dst_image);
 int apply_lut_ocio_sse2_rgba(const LUT3DContext *lut3d, const FloatImageRGBA *src_image, FloatImageRGBA *dst_image);
 
 static LutTestItem LUTS[] = {
-    {"ffmpeg_c",                                    apply_lut_c,                           NULL},
-    {"ocio_c++",                                           NULL,            apply_lut_ocio_rgba},
-    {"ocio_sse2",                                          NULL,       apply_lut_ocio_sse2_rgba},
-    {"avx2_planer_intrinsics", apply_lut_planer_intrinsics_avx2,                           NULL},
-    {"avx2_rgba_intrinsics",                               NULL, apply_lut_rgba_intrinsics_avx2},
-    {"avx_planer_intrinsics",   apply_lut_planer_intrinsics_avx,                           NULL},
-    {"avx_rgba_intrinsics",                                NULL,  apply_lut_rgba_intrinsics_avx},
-    {"sse2_planer_intrinsics", apply_lut_planer_intrinsics_sse2,                           NULL},
-    {"sse2_rgba_intrinsics",                               NULL, apply_lut_rgba_intrinsics_sse2},
-    {"ffmpeg_avx2_asm",                      apply_lut_avx2_asm,                           NULL},
-    {"ffmpeg_avx_asm",                        apply_lut_avx_asm,                           NULL},
-    {"ffmpeg_sse2_asm",                      apply_lut_sse2_asm,                           NULL},
+    {"ffmpeg_c",                                    apply_lut_c,                           NULL, 0, 0},
+    {"ocio_c++",                                           NULL,            apply_lut_ocio_rgba, 0, 0},
+    {"ocio_sse2",                                          NULL,       apply_lut_ocio_sse2_rgba, 0, 0},
+    {"avx2_planer_intrinsics", apply_lut_planer_intrinsics_avx2,                           NULL, 1, 1},
+    {"avx2_rgba_intrinsics",                               NULL, apply_lut_rgba_intrinsics_avx2, 1, 1},
+    {"avx_planer_intrinsics",   apply_lut_planer_intrinsics_avx,                           NULL, 1, 0},
+    {"avx_rgba_intrinsics",                                NULL,  apply_lut_rgba_intrinsics_avx, 1, 0},
+    {"sse2_planer_intrinsics", apply_lut_planer_intrinsics_sse2,                           NULL, 0, 0},
+    {"sse2_rgba_intrinsics",                               NULL, apply_lut_rgba_intrinsics_sse2, 0, 0},
+    {"ffmpeg_avx2_asm",                      apply_lut_avx2_asm,                           NULL, 1, 1},
+    {"ffmpeg_avx_asm",                        apply_lut_avx_asm,                           NULL, 1, 0},
+    {"ffmpeg_sse2_asm",                      apply_lut_sse2_asm,                           NULL, 0, 0},
 };
 
 #define ARRAY_SIZE(x)  (sizeof(x) / sizeof((x)[0]))
@@ -718,9 +725,9 @@ static int random_lut_test()
     int test_count = ARRAY_SIZE(LUT_SIZES) * ARRAY_SIZE(LUTS);
     TestResult *test_results = (TestResult*)malloc(test_count * sizeof(TestResult));
     TestResult *test_result = test_results;
+    test_count = 0;
 
-    get_cpu_features();
-
+    CPUFeatures features = get_cpu_features();
     uint64_t test_start = get_timer();
 
     for (int l = 0; l < ARRAY_SIZE(LUT_SIZES); l++) {
@@ -736,6 +743,17 @@ static int random_lut_test()
             uint64_t end = 0;
 
             LutTestItem *test = &LUTS[i];
+
+            if (test->avx2 && !features.has_avx2) {
+                printf("skipping %s cpu does not have avx2\n", test->name);
+                continue;
+            }
+
+            if (test->avx && !features.has_avx) {
+                printf("skipping %s cpu does not have avx\n", test->name);
+                continue;
+            }
+
             srand(0);
 
             int random_lut_count = 5;
@@ -806,6 +824,7 @@ static int random_lut_test()
             test_result->per_frame = per_frame;
             test_result->elapse = elapse;
             test_result++;
+            test_count++;
         }
     }
 
@@ -892,16 +911,28 @@ int exr_image_test(int argc, char *argv[])
 
     // rgba_to_planer(&src_image_rgba, &src_image);
 
-    get_cpu_features();
+    CPUFeatures features = get_cpu_features();
     printf("lut: %s\n", lut_path);
     printf("exr: %s\n", exr_path);
 
     TestResult *test_results = (TestResult*)malloc(ARRAY_SIZE(LUTS) * sizeof(TestResult));
+    TestResult *test_result = test_results;
+    int test_count = 0;
 
     for (int i = 0; i < ARRAY_SIZE(LUTS); i++) {
 
         uint64_t dur = 0;
         LutTestItem *test = &LUTS[i];
+
+        if (test->avx2 && !features.has_avx2) {
+            printf("skipping %s cpu does not have avx2\n", test->name);
+            continue;
+        }
+
+        if (test->avx && !features.has_avx) {
+            printf("skipping %s cpu does not have avx\n", test->name);
+            continue;
+        }
 
         printf("%s : %d runs %dx%d\n", test->name, runs, src_image.width, src_image.height);
         fflush(stdout);
@@ -942,12 +973,14 @@ int exr_image_test(int argc, char *argv[])
         write_png(&dst_image, result_name_png);
         write_exr(&dst_image, result_name_exr);
 
-        test_results[i].name      = test->name;
-        test_results[i].per_frame = per_frame;
-        test_results[i].elapse    = elapse;
+        test_result->name      = test->name;
+        test_result->per_frame = per_frame;
+        test_result->elapse    = elapse;
+        test_result++;
+        test_count++;
     }
 
-    write_test_results("results.csv", test_results,  ARRAY_SIZE(LUTS));
+    write_test_results("results.csv", test_results, test_count);
 
     return 0;
 }
