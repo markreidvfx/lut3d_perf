@@ -22,10 +22,11 @@ It would be nice to have a ARM NEON implementation at some point.
 - msvc, gcc or clang
 
 ## Test Results
-![Random_1024x1024](./images/Random_lut_1024x1024.png)
-![ACES2065-1_to_Rec709](./images/ACES2065-1_to_Rec709_results.png)
-![SLog3_to_ACESRec709](./images/SLog3_to_ACESRec709_results.png)
+![Random_1024x1024_windows](./images/Random_lut_1024x1024_windows.png)
+![Random_1024x1024_linux](./images/Random_lut_1024x1024_linux.png)
 ![Random_1024x1024_macos](./images/Random_lut_1024x1024_macos.png)
+![ACES2065-1_to_Rec709_windows](./images/ACES2065-1_to_Rec709_windows.png)
+![SLog3_to_ACESRec709_windows](./images/SLog3_to_ACESRec709_windows.png)
 
 AVX intrinsic version can produce slower/similar speed code to SSE2 on some compilers when compared to the AVX assembly version.
 Still investigating why.
