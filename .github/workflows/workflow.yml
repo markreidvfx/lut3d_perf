@@ -9,13 +9,52 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+        - { os: ubuntu-latest,  complier: gcc,   CXX: g++,     shell: bash  }
+        - { os: ubuntu-latest,  complier: clang, CXX: clang++, shell: bash  }
+        # - { os: windows-latest, complier: msvc,  CXX: msvc,    shell: bash  }
+        - { os: windows-latest, complier: gcc,   CXX: g++,     shell: msys2 }
+        - { os: windows-latest, complier: clang, CXX: clang++, shell: msys2 }
+        - { os: macos-latest,   complier: clang, CXX: clang++, shell: bash  }
+    env:
+      CC: ${{ matrix.complier }}
+      CXX: ${{ matrix.CXX }}
+    defaults:
+      run:
+        shell: '${{ matrix.shell }} {0}'
 
     steps:
     - uses: actions/checkout@v3
-    - name: Install yasm
-      run: sudo apt-get install -y yasm
+    - uses: ilammy/msvc-dev-cmd@v1
+      if: matrix.complier == 'msvc'
+
+    - name: Set up MSYS2
+      if: runner.os == 'Windows' && (matrix.complier == 'gcc' || matrix.complier == 'clang')
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: mingw64
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-clang
+          mingw-w64-x86_64-yasm
+          make
+
+    - name: Install Deps Lunux
+      if: runner.os == 'Linux'
+      run: sudo apt-get install -y yasm clang
+
+    - name: Install Deps macOS
+      if: runner.os == 'macOS'
+      run: brew install yasm
+
+    - name: Build and Test MSVC
+      if: matrix.complier == 'msvc'
+      run: cmd /c build_msvc.bat test_rand
+
     - name: make
-      run: make
-    - name: random lut test
-      run: make test_rand
+      if: matrix.complier != 'msvc'
+      run: |
+        make test_rand

@@ -1,8 +1,8 @@
 all: lut3d_perf
 
-CC = gcc
-CXX = g++
-YASM = yasm
+CC ?= gcc
+CXX ?= g++
+YASM ?= yasm
 # CC = clang
 # CXX = clang++
 
