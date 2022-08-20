@@ -55,16 +55,31 @@ typedef struct rgabvec_sse2 {
 } m128_rgbavec;
 
 
-inline __m128 i32gather_ps_sse2(float* src, __m128i idx, float * buffer)
-{
-    int32_t *indices = (int32_t*)buffer;
-    _mm_store_si128((__m128i *)buffer, idx);
-    buffer[0] = src[indices[0]];
-    buffer[1] = src[indices[1]];
-    buffer[2] = src[indices[2]];
-    buffer[3] = src[indices[3]];
-    return _mm_load_ps(buffer);
-}
+#define i32gather_ps_sse2(src, dst, idx, indices, buffer)  \
+    _mm_store_si128((__m128i *)indices, idx);              \
+    buffer[0] = (src)[indices[0]];                         \
+    buffer[1] = (src)[indices[1]];                         \
+    buffer[2] = (src)[indices[2]];                         \
+    buffer[3] = (src)[indices[3]];                         \
+    dst = _mm_load_ps(buffer)
+
+#define gather_rgb_sse2(src, idx)             \
+    _mm_store_si128((__m128i *)indices, idx); \
+    buffer_r[0] = (src)[indices[0] + 0];      \
+    buffer_g[0] = (src)[indices[0] + 1];      \
+    buffer_b[0] = (src)[indices[0] + 2];      \
+    buffer_r[1] = (src)[indices[1] + 0];      \
+    buffer_g[1] = (src)[indices[1] + 1];      \
+    buffer_b[1] = (src)[indices[1] + 2];      \
+    buffer_r[2] = (src)[indices[2] + 0];      \
+    buffer_g[2] = (src)[indices[2] + 1];      \
+    buffer_b[2] = (src)[indices[2] + 2];      \
+    buffer_r[3] = (src)[indices[3] + 0];      \
+    buffer_g[3] = (src)[indices[3] + 1];      \
+    buffer_b[3] = (src)[indices[3] + 2];      \
+    sample_r = _mm_load_ps(buffer_r);         \
+    sample_g = _mm_load_ps(buffer_g);         \
+    sample_b = _mm_load_ps(buffer_b)
 
 inline __m128 floor_ps_sse2(__m128 v)
 {
@@ -83,7 +98,11 @@ inline __m128 fmadd_ps_sse2(__m128 a, __m128 b, __m128 c)
 
 inline __m128 apply_prelut_sse2(const Lut3DContextSSE2 *ctx, __m128 v, int idx)
 {
-    SSE2_ALIGN(float index_buffer[4]);
+    SSE2_ALIGN(uint32_t indices_p[4]);
+    SSE2_ALIGN(uint32_t indices_n[4]);
+    SSE2_ALIGN(float buffer_p[4]);
+    SSE2_ALIGN(float buffer_n[4]);
+
     __m128 zero         = _mm_setzero_ps();
     __m128 one_f        = _mm_set1_ps(1.0);
 
@@ -102,8 +121,9 @@ inline __m128 apply_prelut_sse2(const Lut3DContextSSE2 *ctx, __m128 v, int idx)
     __m128i prev_i = _mm_cvtps_epi32(prev_f);
     __m128i next_i = _mm_cvtps_epi32(next_f);
 
-    __m128 p = i32gather_ps_sse2(ctx->prelut[idx], prev_i, index_buffer);
-    __m128 n = i32gather_ps_sse2(ctx->prelut[idx], next_i, index_buffer);
+    __m128 p,n;
+    i32gather_ps_sse2(ctx->prelut[idx], p, prev_i, indices_p, buffer_p);
+    i32gather_ps_sse2(ctx->prelut[idx], n, next_i, indices_n, buffer_n);
 
     // lerp: a + (b - a) * t;
     v = fmadd_ps_sse2(_mm_sub_ps(n, p), d, p);
@@ -113,7 +133,11 @@ inline __m128 apply_prelut_sse2(const Lut3DContextSSE2 *ctx, __m128 v, int idx)
 
 static inline rgbvec_sse2 interp_tetrahedral_sse2(const Lut3DContextSSE2 *ctx, __m128 r, __m128 g, __m128 b)
 {
-    SSE2_ALIGN(float index_buffer[4]);
+    SSE2_ALIGN(uint32_t indices[4]);
+    SSE2_ALIGN(float buffer_r[4]);
+    SSE2_ALIGN(float buffer_g[4]);
+    SSE2_ALIGN(float buffer_b[4]);
+
     __m128 x0;
     __m128 x1;
     __m128 x2;
@@ -226,9 +250,7 @@ static inline rgbvec_sse2 interp_tetrahedral_sse2(const Lut3DContextSSE2 *ctx, _
     __m128i cxxxb_idx = _mm_cvttps_epi32(cxxxb);
     __m128i c111_idx  = _mm_cvttps_epi32(c111);
 
-    sample_r = i32gather_ps_sse2((float*)ctx->lut+0, c000_idx, index_buffer);
-    sample_g = i32gather_ps_sse2((float*)ctx->lut+1, c000_idx, index_buffer);
-    sample_b = i32gather_ps_sse2((float*)ctx->lut+2, c000_idx, index_buffer);
+    gather_rgb_sse2((float*)ctx->lut, c000_idx);
 
     // (1-x0) * c000
     __m128 v = _mm_sub_ps(one_f, x0);
@@ -236,9 +258,7 @@ static inline rgbvec_sse2 interp_tetrahedral_sse2(const Lut3DContextSSE2 *ctx, _
     result.g = _mm_mul_ps(sample_g, v);
     result.b = _mm_mul_ps(sample_b, v);
 
-    sample_r = i32gather_ps_sse2((float*)ctx->lut+0, cxxxa_idx, index_buffer);
-    sample_g = i32gather_ps_sse2((float*)ctx->lut+1, cxxxa_idx, index_buffer);
-    sample_b = i32gather_ps_sse2((float*)ctx->lut+2, cxxxa_idx, index_buffer);
+    gather_rgb_sse2((float*)ctx->lut, cxxxa_idx);
 
     // (x0-x1) * cxxxa
     v = _mm_sub_ps(x0, x1);
@@ -246,9 +266,7 @@ static inline rgbvec_sse2 interp_tetrahedral_sse2(const Lut3DContextSSE2 *ctx, _
     result.g = fmadd_ps_sse2(v, sample_g, result.g);
     result.b = fmadd_ps_sse2(v, sample_b, result.b);
 
-    sample_r = i32gather_ps_sse2((float*)ctx->lut+0, cxxxb_idx, index_buffer);
-    sample_g = i32gather_ps_sse2((float*)ctx->lut+1, cxxxb_idx, index_buffer);
-    sample_b = i32gather_ps_sse2((float*)ctx->lut+2, cxxxb_idx, index_buffer);
+    gather_rgb_sse2((float*)ctx->lut, cxxxb_idx);
 
     // (x1-x2) * cxxxb
     v = _mm_sub_ps(x1, x2);
@@ -256,9 +274,7 @@ static inline rgbvec_sse2 interp_tetrahedral_sse2(const Lut3DContextSSE2 *ctx, _
     result.g = fmadd_ps_sse2(v, sample_g, result.g);
     result.b = fmadd_ps_sse2(v, sample_b, result.b);
 
-    sample_r = i32gather_ps_sse2((float*)ctx->lut+0, c111_idx, index_buffer);
-    sample_g = i32gather_ps_sse2((float*)ctx->lut+1, c111_idx, index_buffer);
-    sample_b = i32gather_ps_sse2((float*)ctx->lut+2, c111_idx, index_buffer);
+    gather_rgb_sse2((float*)ctx->lut, c111_idx);
 
     // x2 * c111
     result.r = fmadd_ps_sse2(x2, sample_r, result.r);

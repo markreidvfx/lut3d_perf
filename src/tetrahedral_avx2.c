@@ -307,18 +307,18 @@ int apply_lut_planer_intrinsics_avx2(const LUT3DContext *lut3d, const FloatImage
     return 0;
 }
 
-inline __m256 movelh_ps_avx2(__m256 a, __m256 b)
+static inline __m256 movelh_ps_avx2(__m256 a, __m256 b)
 {
     return _mm256_castpd_ps(_mm256_unpacklo_pd(_mm256_castps_pd(a), _mm256_castps_pd(b)));
 }
 
-inline __m256 movehl_ps_avx2(__m256 a, __m256 b)
+static inline __m256 movehl_ps_avx2(__m256 a, __m256 b)
 {
     // NOTE: this is a and b are reversed to match sse2 movhlps which is different than unpckhpd
     return _mm256_castpd_ps(_mm256_unpackhi_pd(_mm256_castps_pd(b), _mm256_castps_pd(a)));
 }
 
-inline rgbavec_avx2 rgba_transpose_4x4_4x4_avx2(__m256 row0, __m256 row1, __m256 row2, __m256 row3)
+static inline rgbavec_avx2 rgba_transpose_4x4_4x4_avx2(__m256 row0, __m256 row1, __m256 row2, __m256 row3)
 {
     rgbavec_avx2 result;
     __m256 tmp0 = _mm256_unpacklo_ps(row0, row1);
@@ -338,7 +338,7 @@ inline rgbavec_avx2 rgba_transpose_4x4_4x4_avx2(__m256 row0, __m256 row1, __m256
     // r4, g4, b4, a4 | r5, g5, b5, a5  <==>  b0, b2, b4, b6 | b1, b3, b5, b7
     // r6, g6, b6, a5 | r7, g7, b7, a5        a0, a2, a4, a6 | a1, a4, a5, a7
 
-    // each 128 lane is transpose independently,
+    // each 128 lane is transposed independently,
     // the channel values end up with a even/odd shuffled order because of this.
     // The exact order is not important for the lut to work.
 
