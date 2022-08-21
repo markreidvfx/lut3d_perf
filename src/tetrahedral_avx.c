@@ -136,6 +136,20 @@ static inline __m256 apply_prelut_avx(const Lut3DContextAVX *ctx, __m256 v, int 
     return v;
 }
 
+inline __m256 blendv_avx(__m256 a, __m256 b, __m256 mask)
+{
+    /* gcc 12 currently is not generating the vblendvps instruction with the -mavx flag.
+       Use inline assembly to force it to.
+       https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106704 */
+#if defined __GNUC__ && __GNUC__ >= 12
+    __m256 result;
+    __asm__ volatile("vblendvps %3, %2, %1, %0" : "=x" (result) : "x" (a), "x" (b),"x" (mask):);
+    return result;
+#else
+    return _mm256_blendv_ps(a, b, mask);
+#endif
+}
+
 static inline rgbvec_avx interp_tetrahedral_avx(const Lut3DContextAVX *ctx, __m256 r, __m256 g, __m256 b)
 {
     AVX_ALIGN(uint32_t indices[8]);
@@ -214,27 +228,27 @@ static inline rgbvec_avx interp_tetrahedral_avx(const Lut3DContextAVX *ctx, __m2
 
     // r> !b>r && r>g
     mask = _mm256_andnot_ps(gt_b, gt_r);
-    cxxxa = _mm256_blendv_ps(prev_r, next_r, mask);
+    cxxxa = blendv_avx(prev_r, next_r, mask);
 
     // r< !r>g && b>r
     mask = _mm256_andnot_ps(gt_r, gt_b);
-    cxxxb = _mm256_blendv_ps(next_r, prev_r, mask);
+    cxxxb = blendv_avx(next_r, prev_r, mask);
 
     // g> !r>g && g>b
     mask = _mm256_andnot_ps(gt_r, gt_g);
-    cxxxa = _mm256_add_ps(cxxxa, _mm256_blendv_ps(prev_g, next_g, mask));
+    cxxxa = _mm256_add_ps(cxxxa, blendv_avx(prev_g, next_g, mask));
 
     // g< !g>b && r>g
     mask = _mm256_andnot_ps(gt_g, gt_r);
-    cxxxb = _mm256_add_ps(cxxxb, _mm256_blendv_ps(next_g, prev_g, mask));
+    cxxxb = _mm256_add_ps(cxxxb, blendv_avx(next_g, prev_g, mask));
 
     // b> !g>b && b>r
     mask = _mm256_andnot_ps(gt_g, gt_b);
-    cxxxa = _mm256_add_ps(cxxxa, _mm256_blendv_ps(prev_b, next_b, mask));
+    cxxxa = _mm256_add_ps(cxxxa, blendv_avx(prev_b, next_b, mask));
 
     // b< !b>r && g>b
     mask = _mm256_andnot_ps(gt_b, gt_g);
-    cxxxb = _mm256_add_ps(cxxxb, _mm256_blendv_ps(next_b, prev_b, mask));
+    cxxxb = _mm256_add_ps(cxxxb, blendv_avx(next_b, prev_b, mask));
 
     __m256 c000 = _mm256_add_ps(_mm256_add_ps(prev_r, prev_g), prev_b);
     __m256 c111 = _mm256_add_ps(_mm256_add_ps(next_r, next_g), next_b);
