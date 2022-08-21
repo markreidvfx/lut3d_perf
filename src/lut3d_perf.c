@@ -593,6 +593,8 @@ typedef struct {
 int apply_lut_ocio_rgba(const LUT3DContext *lut3d, const FloatImageRGBA *src_image, FloatImageRGBA *dst_image);
 int apply_lut_ocio_sse2_rgba(const LUT3DContext *lut3d, const FloatImageRGBA *src_image, FloatImageRGBA *dst_image);
 
+int LUT_SIZES[] = {32, 64};
+
 static LutTestItem LUTS[] = {
     {"ffmpeg_c",                                    apply_lut_c,                           NULL, 0, 0},
     {"ocio_c++",                                           NULL,            apply_lut_ocio_rgba, 0, 0},
@@ -714,9 +716,6 @@ static void rand_prelut(LUT3DContext *lut3d)
     lut3d->scale.g = 1.00f;
     lut3d->scale.b = 1.00f;
 }
-
-int LUT_SIZES[] = {32, 64};
-
 
 static int random_lut_test()
 {
