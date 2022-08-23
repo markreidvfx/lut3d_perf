@@ -54,6 +54,22 @@ typedef struct rgbavec_avx {
     __m256 r, g, b, a;
 } rgbavec_avx;
 
+static inline __m256 movelh_ps_avx(__m256 a, __m256 b)
+{
+    return _mm256_castpd_ps(_mm256_unpacklo_pd(_mm256_castps_pd(a), _mm256_castps_pd(b)));
+}
+
+static inline __m256 movehl_ps_avx(__m256 a, __m256 b)
+{
+    // NOTE: this is a and b are reversed to match sse2 movhlps which is different than unpckhpd
+    return _mm256_castpd_ps(_mm256_unpackhi_pd(_mm256_castps_pd(b), _mm256_castps_pd(a)));
+}
+
+static inline __m256 load2_m128_avx(const float *hi, const float *low)
+{
+    return _mm256_insertf128_ps(_mm256_castps128_ps256(_mm_loadu_ps(low)), _mm_loadu_ps(hi), 1);
+}
+
 #define i32gather_ps_avx(src, dst, idx, indices, buffer)  \
     _mm256_store_si256((__m256i *)indices, idx); \
     buffer[0] = (src)[indices[0]];               \
@@ -66,35 +82,20 @@ typedef struct rgbavec_avx {
     buffer[7] = (src)[indices[7]];               \
     dst = _mm256_load_ps(buffer)
 
-#define gather_rgb_avx(src, idx)                 \
-    _mm256_store_si256((__m256i *)indices, idx); \
-    buffer_r[0] = (src)[indices[0] + 0];         \
-    buffer_g[0] = (src)[indices[0] + 1];         \
-    buffer_b[0] = (src)[indices[0] + 2];         \
-    buffer_r[1] = (src)[indices[1] + 0];         \
-    buffer_g[1] = (src)[indices[1] + 1];         \
-    buffer_b[1] = (src)[indices[1] + 2];         \
-    buffer_r[2] = (src)[indices[2] + 0];         \
-    buffer_g[2] = (src)[indices[2] + 1];         \
-    buffer_b[2] = (src)[indices[2] + 2];         \
-    buffer_r[3] = (src)[indices[3] + 0];         \
-    buffer_g[3] = (src)[indices[3] + 1];         \
-    buffer_b[3] = (src)[indices[3] + 2];         \
-    buffer_r[4] = (src)[indices[4] + 0];         \
-    buffer_g[4] = (src)[indices[4] + 1];         \
-    buffer_b[4] = (src)[indices[4] + 2];         \
-    buffer_r[5] = (src)[indices[5] + 0];         \
-    buffer_g[5] = (src)[indices[5] + 1];         \
-    buffer_b[5] = (src)[indices[5] + 2];         \
-    buffer_r[6] = (src)[indices[6] + 0];         \
-    buffer_g[6] = (src)[indices[6] + 1];         \
-    buffer_b[6] = (src)[indices[6] + 2];         \
-    buffer_r[7] = (src)[indices[7] + 0];         \
-    buffer_g[7] = (src)[indices[7] + 1];         \
-    buffer_b[7] = (src)[indices[7] + 2];         \
-    sample_r = _mm256_load_ps(buffer_r);         \
-    sample_g = _mm256_load_ps(buffer_g);         \
-    sample_b = _mm256_load_ps(buffer_b)
+
+#define gather_rgb_avx(src, idx)                                \
+    _mm256_store_si256((__m256i *)indices, idx);                \
+    row0 = load2_m128_avx(src + indices[4], src + indices[0]);  \
+    row1 = load2_m128_avx(src + indices[5], src + indices[1]);  \
+    row2 = load2_m128_avx(src + indices[6], src + indices[2]);  \
+    row3 = load2_m128_avx(src + indices[7], src + indices[3]);  \
+    tmp0 = _mm256_unpacklo_ps(row0, row1);                      \
+    tmp2 = _mm256_unpacklo_ps(row2, row3);                      \
+    tmp1 = _mm256_unpackhi_ps(row0, row1);                      \
+    tmp3 = _mm256_unpackhi_ps(row2, row3);                      \
+    sample_r = movelh_ps_avx(tmp0, tmp2);                       \
+    sample_g = movehl_ps_avx(tmp2, tmp0);                       \
+    sample_b = movelh_ps_avx(tmp1, tmp3)
 
 static inline __m256 fmadd_ps_avx(__m256 a, __m256 b, __m256 c)
 {
@@ -153,21 +154,15 @@ inline __m256 blendv_avx(__m256 a, __m256 b, __m256 mask)
 static inline rgbvec_avx interp_tetrahedral_avx(const Lut3DContextAVX *ctx, __m256 r, __m256 g, __m256 b)
 {
     AVX_ALIGN(uint32_t indices[8]);
-    AVX_ALIGN(float buffer_r[8]);
-    AVX_ALIGN(float buffer_g[8]);
-    AVX_ALIGN(float buffer_b[8]);
 
-    __m256 x0;
-    __m256 x1;
-    __m256 x2;
-
+    __m256 x0, x1, x2;
     __m256 cxxxa;
     __m256 cxxxb;
     __m256 mask;
 
-    __m256 sample_r;
-    __m256 sample_g;
-    __m256 sample_b;
+    __m256 tmp0, tmp1, tmp2, tmp3;
+    __m256 row0, row1, row2, row3;
+    __m256 sample_r, sample_g, sample_b;
 
     rgbvec_avx result;
 
@@ -175,8 +170,8 @@ static inline rgbvec_avx interp_tetrahedral_avx(const Lut3DContextAVX *ctx, __m2
     __m256 lutsize  = ctx->lutsize;
     __m256 lutsize2 = ctx->lutsize2;
 
-    __m256 one_f    = _mm256_set1_ps(1.0f);
-    __m256 three_f  = _mm256_set1_ps(3.0f);
+    __m256 one_f   = _mm256_set1_ps(1.0f);
+    __m256 four_f  = _mm256_set1_ps(4.0f);
 
     __m256 prev_r = _mm256_floor_ps(r);
     __m256 prev_g = _mm256_floor_ps(g);
@@ -198,8 +193,8 @@ static inline rgbvec_avx interp_tetrahedral_avx(const Lut3DContextAVX *ctx, __m2
     prev_g = _mm256_mul_ps(prev_g, lutsize);
     next_g = _mm256_mul_ps(next_g, lutsize);
 
-    prev_b = _mm256_mul_ps(prev_b, three_f);
-    next_b = _mm256_mul_ps(next_b, three_f);
+    prev_b = _mm256_mul_ps(prev_b, four_f);
+    next_b = _mm256_mul_ps(next_b, four_f);
 
     // This is the tetrahedral blend equation
     // red = (1-x0) * c000.r + (x0-x1) * cxxxa.r + (x1-x2) * cxxxb.r + x2 * c111.r;
@@ -269,7 +264,7 @@ static inline rgbvec_avx interp_tetrahedral_avx(const Lut3DContextAVX *ctx, __m2
     __m256i cxxxb_idx = _mm256_cvttps_epi32(cxxxb);
     __m256i c111_idx  = _mm256_cvttps_epi32(c111);
 
-    gather_rgb_avx((float*)ctx->lut, c000_idx);
+    gather_rgb_avx(ctx->lut, c000_idx);
 
     // (1-x0) * c000
     __m256 v = _mm256_sub_ps(one_f, x0);
@@ -277,7 +272,7 @@ static inline rgbvec_avx interp_tetrahedral_avx(const Lut3DContextAVX *ctx, __m2
     result.g = _mm256_mul_ps(sample_g, v);
     result.b = _mm256_mul_ps(sample_b, v);
 
-    gather_rgb_avx((float*)ctx->lut, cxxxa_idx);
+    gather_rgb_avx(ctx->lut, cxxxa_idx);
 
     // (x0-x1) * cxxxa
     v = _mm256_sub_ps(x0, x1);
@@ -285,7 +280,7 @@ static inline rgbvec_avx interp_tetrahedral_avx(const Lut3DContextAVX *ctx, __m2
     result.g = fmadd_ps_avx(v, sample_g, result.g);
     result.b = fmadd_ps_avx(v, sample_b, result.b);
 
-    gather_rgb_avx((float*)ctx->lut, cxxxb_idx);
+    gather_rgb_avx(ctx->lut, cxxxb_idx);
 
     // (x1-x2) * cxxxb
     v = _mm256_sub_ps(x1, x2);
@@ -293,7 +288,7 @@ static inline rgbvec_avx interp_tetrahedral_avx(const Lut3DContextAVX *ctx, __m2
     result.g = fmadd_ps_avx(v, sample_g, result.g);
     result.b = fmadd_ps_avx(v, sample_b, result.b);
 
-    gather_rgb_avx((float*)ctx->lut, c111_idx);
+    gather_rgb_avx(ctx->lut, c111_idx);
 
     // x2 * c111
     result.r = fmadd_ps_avx(x2, sample_r, result.r);
@@ -316,10 +311,10 @@ int apply_lut_planer_intrinsics_avx(const LUT3DContext *lut3d, const FloatImage 
     __m256 scale_b = _mm256_set1_ps(lut3d->scale.b * lutmax);
     __m256 zero    = _mm256_setzero_ps();
 
-    ctx.lut      = (float*)lut3d->lut;
+    ctx.lut      = (float*)lut3d->rgba_lut;
     ctx.lutmax   = _mm256_set1_ps(lutmax);
-    ctx.lutsize  = _mm256_set1_ps((float)lut3d->lutsize * 3);
-    ctx.lutsize2 = _mm256_set1_ps((float)lut3d->lutsize2 * 3);
+    ctx.lutsize  = _mm256_set1_ps((float)lut3d->lutsize * 4);
+    ctx.lutsize2 = _mm256_set1_ps((float)lut3d->lutsize2 * 4);
 
     ctx.prelut[0] = prelut->lut[0];
     ctx.prelut[1] = prelut->lut[1];
@@ -370,17 +365,6 @@ int apply_lut_planer_intrinsics_avx(const LUT3DContext *lut3d, const FloatImage 
     return 0;
 }
 
-static inline __m256 movelh_ps_avx(__m256 a, __m256 b)
-{
-    return _mm256_castpd_ps(_mm256_unpacklo_pd(_mm256_castps_pd(a), _mm256_castps_pd(b)));
-}
-
-static inline __m256 movehl_ps_avx(__m256 a, __m256 b)
-{
-    // NOTE: this is a and b are reversed to match sse2 movhlps which is different than unpckhpd
-    return _mm256_castpd_ps(_mm256_unpackhi_pd(_mm256_castps_pd(b), _mm256_castps_pd(a)));
-}
-
 static inline rgbavec_avx rgba_transpose_4x4_4x4_avx(__m256 row0, __m256 row1, __m256 row2, __m256 row3)
 {
     rgbavec_avx result;
@@ -422,10 +406,10 @@ int apply_lut_rgba_intrinsics_avx(const LUT3DContext *lut3d, const FloatImageRGB
     __m256 scale_b = _mm256_set1_ps(lut3d->scale.b * lutmax);
     __m256 zero    = _mm256_setzero_ps();
 
-    ctx.lut      = (float*)lut3d->lut;
+    ctx.lut      = (float*)lut3d->rgba_lut;
     ctx.lutmax   = _mm256_set1_ps(lutmax);
-    ctx.lutsize  = _mm256_set1_ps((float)lut3d->lutsize * 3);
-    ctx.lutsize2 = _mm256_set1_ps((float)lut3d->lutsize2 * 3);
+    ctx.lutsize  = _mm256_set1_ps((float)lut3d->lutsize * 4);
+    ctx.lutsize2 = _mm256_set1_ps((float)lut3d->lutsize2 * 4);
 
     ctx.prelut[0] = prelut->lut[0];
     ctx.prelut[1] = prelut->lut[1];
