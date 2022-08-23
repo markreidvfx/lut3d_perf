@@ -198,9 +198,9 @@ static inline rgbvec_avx2 interp_tetrahedral_avx2(const Lut3DContextAVX2 *ctx, _
     __m256i cxxxb_idx = _mm256_cvttps_epi32(cxxxb);
     __m256i c111_idx  = _mm256_cvttps_epi32(c111);
 
-    sample_r = _mm256_i32gather_ps((float*)ctx->lut+0, c000_idx, 4);
-    sample_g = _mm256_i32gather_ps((float*)ctx->lut+1, c000_idx, 4);
-    sample_b = _mm256_i32gather_ps((float*)ctx->lut+2, c000_idx, 4);
+    sample_r = _mm256_i32gather_ps(ctx->lut+0, c000_idx, 4);
+    sample_g = _mm256_i32gather_ps(ctx->lut+1, c000_idx, 4);
+    sample_b = _mm256_i32gather_ps(ctx->lut+2, c000_idx, 4);
 
     // (1-x0) * c000
     __m256 v = _mm256_sub_ps(one_f, x0);
@@ -208,9 +208,9 @@ static inline rgbvec_avx2 interp_tetrahedral_avx2(const Lut3DContextAVX2 *ctx, _
     result.g = _mm256_mul_ps(sample_g, v);
     result.b = _mm256_mul_ps(sample_b, v);
 
-    sample_r = _mm256_i32gather_ps((float*)ctx->lut+0, cxxxa_idx, 4);
-    sample_g = _mm256_i32gather_ps((float*)ctx->lut+1, cxxxa_idx, 4);
-    sample_b = _mm256_i32gather_ps((float*)ctx->lut+2, cxxxa_idx, 4);
+    sample_r = _mm256_i32gather_ps(ctx->lut+0, cxxxa_idx, 4);
+    sample_g = _mm256_i32gather_ps(ctx->lut+1, cxxxa_idx, 4);
+    sample_b = _mm256_i32gather_ps(ctx->lut+2, cxxxa_idx, 4);
 
     // (x0-x1) * cxxxa
     v = _mm256_sub_ps(x0, x1);
@@ -218,9 +218,9 @@ static inline rgbvec_avx2 interp_tetrahedral_avx2(const Lut3DContextAVX2 *ctx, _
     result.g = _mm256_fmadd_ps(v, sample_g, result.g);
     result.b = _mm256_fmadd_ps(v, sample_b, result.b);
 
-    sample_r = _mm256_i32gather_ps((float*)ctx->lut+0, cxxxb_idx, 4);
-    sample_g = _mm256_i32gather_ps((float*)ctx->lut+1, cxxxb_idx, 4);
-    sample_b = _mm256_i32gather_ps((float*)ctx->lut+2, cxxxb_idx, 4);
+    sample_r = _mm256_i32gather_ps(ctx->lut+0, cxxxb_idx, 4);
+    sample_g = _mm256_i32gather_ps(ctx->lut+1, cxxxb_idx, 4);
+    sample_b = _mm256_i32gather_ps(ctx->lut+2, cxxxb_idx, 4);
 
     // (x1-x2) * cxxxb
     v = _mm256_sub_ps(x1, x2);
@@ -228,9 +228,9 @@ static inline rgbvec_avx2 interp_tetrahedral_avx2(const Lut3DContextAVX2 *ctx, _
     result.g = _mm256_fmadd_ps(v, sample_g, result.g);
     result.b = _mm256_fmadd_ps(v, sample_b, result.b);
 
-    sample_r = _mm256_i32gather_ps((float*)ctx->lut+0, c111_idx, 4);
-    sample_g = _mm256_i32gather_ps((float*)ctx->lut+1, c111_idx, 4);
-    sample_b = _mm256_i32gather_ps((float*)ctx->lut+2, c111_idx, 4);
+    sample_r = _mm256_i32gather_ps(ctx->lut+0, c111_idx, 4);
+    sample_g = _mm256_i32gather_ps(ctx->lut+1, c111_idx, 4);
+    sample_b = _mm256_i32gather_ps(ctx->lut+2, c111_idx, 4);
 
     // x2 * c111
     result.r = _mm256_fmadd_ps(x2, sample_r, result.r);
@@ -276,15 +276,18 @@ int apply_lut_planer_intrinsics_avx2(const LUT3DContext *lut3d, const FloatImage
         float *srcr = src_image->data[0] + y * src_image->stride;
         float *srcg = src_image->data[1] + y * src_image->stride;
         float *srcb = src_image->data[2] + y * src_image->stride;
+        float *srca = src_image->data[3] + y * src_image->stride;
 
         float *dstr = dst_image->data[0] + y * dst_image->stride;
         float *dstg = dst_image->data[1] + y * dst_image->stride;
         float *dstb = dst_image->data[2] + y * dst_image->stride;
+        float *dsta = dst_image->data[3] + y * dst_image->stride;
 
         for (int x = 0; x < src_image->width; x+=8) {
             __m256  r = _mm256_loadu_ps(srcr + x);
             __m256  g = _mm256_loadu_ps(srcg + x);
             __m256  b = _mm256_loadu_ps(srcb + x);
+            __m256  a = _mm256_loadu_ps(srca + x);
 
             if (prelut->size) {
                 r = apply_prelut_avx2(&ctx, r, 0);
@@ -302,6 +305,7 @@ int apply_lut_planer_intrinsics_avx2(const LUT3DContext *lut3d, const FloatImage
             _mm256_storeu_ps(dstr + x, c.r);
             _mm256_storeu_ps(dstg + x, c.g);
             _mm256_storeu_ps(dstb + x, c.b);
+            _mm256_storeu_ps(dsta + x,   a);
         }
     }
     return 0;

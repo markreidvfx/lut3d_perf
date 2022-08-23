@@ -334,15 +334,18 @@ int apply_lut_planer_intrinsics_avx(const LUT3DContext *lut3d, const FloatImage 
         float *srcr = src_image->data[0] + y * src_image->stride;
         float *srcg = src_image->data[1] + y * src_image->stride;
         float *srcb = src_image->data[2] + y * src_image->stride;
+        float *srca = src_image->data[3] + y * src_image->stride;
 
         float *dstr = dst_image->data[0] + y * dst_image->stride;
         float *dstg = dst_image->data[1] + y * dst_image->stride;
         float *dstb = dst_image->data[2] + y * dst_image->stride;
+        float *dsta = dst_image->data[3] + y * dst_image->stride;
 
         for (int x = 0; x < src_image->width; x+=8) {
             __m256  r = _mm256_loadu_ps(srcr + x);
             __m256  g = _mm256_loadu_ps(srcg + x);
             __m256  b = _mm256_loadu_ps(srcb + x);
+            __m256  a = _mm256_loadu_ps(srca + x);
 
             if (prelut->size) {
                 r = apply_prelut_avx(&ctx, r, 0);
@@ -360,6 +363,7 @@ int apply_lut_planer_intrinsics_avx(const LUT3DContext *lut3d, const FloatImage 
             _mm256_storeu_ps(dstr + x, c.r);
             _mm256_storeu_ps(dstg + x, c.g);
             _mm256_storeu_ps(dstb + x, c.b);
+            _mm256_storeu_ps(dsta + x,   a);
         }
     }
     return 0;
