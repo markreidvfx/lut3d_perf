@@ -931,6 +931,7 @@ int exr_image_test(int argc, char *argv[])
     TestResult *test_results = (TestResult*)malloc(ARRAY_SIZE(LUTS) * sizeof(TestResult));
     TestResult *test_result = test_results;
     int test_count = 0;
+    uint64_t test_start = get_timer();
 
     for (int i = 0; i < ARRAY_SIZE(LUTS); i++) {
 
@@ -994,6 +995,8 @@ int exr_image_test(int argc, char *argv[])
     }
 
     write_test_results("results.csv", test_results, test_count);
+    double test_elapse = (double)(get_timer() - test_start)/ (double)freq;
+    printf("tests ran in %f secs\n", test_elapse);
 
     return 0;
 }
