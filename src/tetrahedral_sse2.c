@@ -77,22 +77,22 @@ typedef struct rgabvec_sse2 {
     sample_g = _mm_movehl_ps(tmp2, tmp0);     \
     sample_b = _mm_movelh_ps(tmp1, tmp3)
 
-inline __m128 floor_ps_sse2(__m128 v)
+static inline __m128 floor_ps_sse2(__m128 v)
 {
     return _mm_cvtepi32_ps(_mm_cvttps_epi32(v));
 }
 
-inline __m128 blendv_ps_sse2(__m128 a, __m128 b, __m128 mask)
+static inline __m128 blendv_ps_sse2(__m128 a, __m128 b, __m128 mask)
 {
     return _mm_xor_ps(_mm_and_ps(_mm_xor_ps(a, b), mask), a);
 }
 
-inline __m128 fmadd_ps_sse2(__m128 a, __m128 b, __m128 c)
+static inline __m128 fmadd_ps_sse2(__m128 a, __m128 b, __m128 c)
 {
     return  _mm_add_ps(_mm_mul_ps(a, b), c);
 }
 
-inline __m128 apply_prelut_sse2(const Lut3DContextSSE2 *ctx, __m128 v, int idx)
+static inline __m128 apply_prelut_sse2(const Lut3DContextSSE2 *ctx, __m128 v, int idx)
 {
     SSE2_ALIGN(uint32_t indices_p[4]);
     SSE2_ALIGN(uint32_t indices_n[4]);
@@ -344,7 +344,7 @@ int apply_lut_planer_intrinsics_sse2(const LUT3DContext *lut3d, const FloatImage
     return 0;
 }
 
-inline m128_rgbavec rgba_transpose_4x4_sse2(__m128 row0, __m128 row1, __m128 row2, __m128 row3)
+static inline m128_rgbavec rgba_transpose_4x4_sse2(__m128 row0, __m128 row1, __m128 row2, __m128 row3)
 {
     m128_rgbavec result;
     __m128 tmp0 = _mm_unpacklo_ps(row0, row1);

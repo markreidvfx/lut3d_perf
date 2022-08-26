@@ -97,9 +97,9 @@ static uint64_t get_timer(void)
 
 #include "tetrahedral_sse2.h"
 
-void cpuid(int index, int *data)
+static void cpuid(int index, int *data)
 {
-#if _WIN32
+#ifdef _MSC_VER
     __cpuid(data, index);
 #else
     int eax, ebx, ecx, edx;
@@ -220,7 +220,7 @@ static int read_exr(char *filename, EXR *exr)
     return 0;
 }
 
-int alloc_image(FloatImage *image, int width, int height)
+static int alloc_image(FloatImage *image, int width, int height)
 {
 
     int stride = ((width + 7) / 8) * 8;
@@ -264,7 +264,7 @@ int alloc_image(FloatImage *image, int width, int height)
     return 0;
 }
 
-int alloc_image_rgba(FloatImageRGBA *image, int width, int height)
+static int alloc_image_rgba(FloatImageRGBA *image, int width, int height)
 {
     size_t size = width*height * sizeof(float) * 4;
 
@@ -283,7 +283,7 @@ int alloc_image_rgba(FloatImageRGBA *image, int width, int height)
     return 0;
 }
 
-int fill_plane(float *src, float *dst, int width, int height, int dst_stride)
+static int fill_plane(float *src, float *dst, int width, int height, int dst_stride)
 {
     for (int y =0; y < height; y++) {
         for (int x =0; x < width; x++) {
@@ -297,7 +297,7 @@ int fill_plane(float *src, float *dst, int width, int height, int dst_stride)
     return 0;
 }
 
-int find_rgba(EXR *exr, FloatImage *image)
+static int find_rgba(EXR *exr, FloatImage *image)
 {
     // RGBA
     int R = -1;
@@ -350,7 +350,7 @@ static inline int strcmp_ignore_case(const char* str1, const char* str2)
 
 
 
-int read_lut(LUT3DContext *lut3d, char *path)
+static int read_lut(LUT3DContext *lut3d, char *path)
 {
     FILE *f = fopen(path, "rb");
     int ret = 0;
@@ -380,7 +380,7 @@ int read_lut(LUT3DContext *lut3d, char *path)
     return ret;
 }
 
-int write_png(FloatImage *image, char *path)
+static int write_png(FloatImage *image, char *path)
 {
     int channels = 3;
     if (image->data[3])
@@ -422,7 +422,7 @@ int write_png(FloatImage *image, char *path)
     return ret;
 }
 
-void write_exr(FloatImage *image, char *path)
+static void write_exr(FloatImage *image, char *path)
 {
     int width = image->width;
     int height = image->height;
@@ -454,7 +454,7 @@ void write_exr(FloatImage *image, char *path)
     free(data);
 }
 
-int write_test_results(char *csv_path, TestResult *test_results, int count)
+static int write_test_results(char *csv_path, TestResult *test_results, int count)
 {
     FILE *f = fopen("results.csv", "wb");
     if (!f) {
@@ -613,7 +613,7 @@ static LutTestItem LUTS[] = {
 #define ARRAY_SIZE(x)  (sizeof(x) / sizeof((x)[0]))
 
 
-void nan_nonesense()
+static void nan_nonesense()
 {
     union intfloat {
         uint32_t i;
@@ -635,7 +635,7 @@ void nan_nonesense()
 
 }
 
-inline float rand_float_range(float a, float b)
+static inline float rand_float_range(float a, float b)
 {
     assert(a < b);
     float v = (float)rand()/(float)(RAND_MAX);
@@ -645,7 +645,7 @@ inline float rand_float_range(float a, float b)
 }
 
 
-inline void rand_float_image(FloatImage *img)
+static inline void rand_float_image(FloatImage *img)
 {
     int width = img->width;
     int height = img->height;
@@ -849,7 +849,7 @@ static int random_lut_test()
     return 0;
 }
 
-int exr_image_test(int argc, char *argv[])
+static int exr_image_test(int argc, char *argv[])
 {
     int ret;
 
@@ -1002,7 +1002,7 @@ int exr_image_test(int argc, char *argv[])
 }
 
 
-void print_usage()
+static void print_usage()
 {
     printf("Usage: lut3d_perf [EXR] [LUT]\n"
            "Performance tests for various tetrahedral 3D lut implementations\n"

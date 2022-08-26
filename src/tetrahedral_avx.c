@@ -137,7 +137,7 @@ static inline __m256 apply_prelut_avx(const Lut3DContextAVX *ctx, __m256 v, int 
     return v;
 }
 
-inline __m256 blendv_avx(__m256 a, __m256 b, __m256 mask)
+static inline __m256 blendv_avx(__m256 a, __m256 b, __m256 mask)
 {
     /* gcc 12 currently is not generating the vblendvps instruction with the -mavx flag.
        Use inline assembly to force it to.

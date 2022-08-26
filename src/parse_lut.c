@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-void inline av_freep(void * arg)
+static inline void av_freep(void * arg)
 {
     void *val;
 
@@ -14,7 +14,7 @@ void inline av_freep(void * arg)
     free(val);
 }
 
-void inline *av_malloc_array(size_t nmemb, size_t size)
+static inline void *av_malloc_array(size_t nmemb, size_t size)
 {
     size_t result = nmemb * size;
     return av_malloc(result);
