@@ -42,3 +42,5 @@ target_link_libraries(lut3d_perf
     tinyexr
     tetrahedral_asm
 )
+
+install(TARGETS lut3d_perf DESTINATION ${CMAKE_INSTALL_BINDIR})
