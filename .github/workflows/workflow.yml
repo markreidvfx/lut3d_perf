@@ -15,7 +15,7 @@ jobs:
         include:
         - { os: ubuntu-latest,  complier: gcc,   CXX: g++,     shell: bash  }
         - { os: ubuntu-latest,  complier: clang, CXX: clang++, shell: bash  }
-        # - { os: windows-latest, complier: msvc,  CXX: msvc,    shell: bash  }
+        - { os: windows-latest, complier: msvc,  CXX: msvc,    shell: pwsh  }
         - { os: windows-latest, complier: gcc,   CXX: g++,     shell: msys2 }
         - { os: windows-latest, complier: clang, CXX: clang++, shell: msys2 }
         - { os: macos-latest,   complier: clang, CXX: clang++, shell: bash  }
@@ -28,8 +28,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - uses: ilammy/msvc-dev-cmd@v1
-      if: matrix.complier == 'msvc'
 
     - name: Set up MSYS2
       if: runner.os == 'Windows' && (matrix.complier == 'gcc' || matrix.complier == 'clang')
@@ -52,7 +50,13 @@ jobs:
 
     - name: Build and Test MSVC
       if: matrix.complier == 'msvc'
-      run: cmd /c build_msvc.bat test_rand
+      run: |
+        choco install yasm
+        mkdir build
+        cd build
+        cmake ..\
+        cmake --build . --config Release -v
+        ctest -C Release . -R test_rand
 
     - name: make
       if: matrix.complier != 'msvc'
