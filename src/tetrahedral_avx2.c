@@ -23,7 +23,7 @@
 #include <immintrin.h>
 
 // Macros for alignment declarations
-#define AVX2_SIMD_BYTES 16
+#define AVX2_SIMD_BYTES 32
 #if defined( _MSC_VER )
 #define AVX2_ALIGN(decl) __declspec(align(AVX2_SIMD_BYTES)) decl
 #elif ( __APPLE__ )
