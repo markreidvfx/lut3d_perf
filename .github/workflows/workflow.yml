@@ -8,17 +8,17 @@ on:
 
 jobs:
   build:
-
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-        - { os: ubuntu-latest,  complier: gcc,   CXX: g++,     shell: bash  }
-        - { os: ubuntu-latest,  complier: clang, CXX: clang++, shell: bash  }
-        - { os: windows-latest, complier: msvc,  CXX: msvc,    shell: pwsh  }
-        - { os: windows-latest, complier: gcc,   CXX: g++,     shell: msys2 }
-        - { os: windows-latest, complier: clang, CXX: clang++, shell: msys2 }
-        - { os: macos-latest,   complier: clang, CXX: clang++, shell: bash  }
+        - { name: linux-gcc,       os: ubuntu-latest,  complier: gcc,   CXX: g++,     shell: bash  }
+        - { name: linux-clang,     os: ubuntu-latest,  complier: clang, CXX: clang++, shell: bash  }
+        - { name: window_x64-msvc, os: windows-latest, complier: msvc,  CXX: msvc,    shell: pwsh, cmake_build: "--config Release", cmake_test: "-C Release"}
+        - { name: windows-g++,     os: windows-latest, complier: gcc,   CXX: g++,     shell: msys2 }
+        - { name: windows-clang,   os: windows-latest, complier: clang, CXX: clang++, shell: msys2 }
+        - { name: macos-clang,     os: macos-latest,   complier: clang, CXX: clang++, shell: bash  }
+    name: ${{ matrix.name }}
     env:
       CC: ${{ matrix.complier }}
       CXX: ${{ matrix.CXX }}
@@ -38,7 +38,7 @@ jobs:
           mingw-w64-x86_64-gcc
           mingw-w64-x86_64-clang
           mingw-w64-x86_64-yasm
-          make
+          mingw-w64-x86_64-cmake
 
     - name: Install Deps Lunux
       if: runner.os == 'Linux'
@@ -48,17 +48,15 @@ jobs:
       if: runner.os == 'macOS'
       run: brew install yasm
 
-    - name: Build and Test MSVC
+    - name: Install Deps MSVC
       if: matrix.complier == 'msvc'
       run: |
         choco install yasm
+
+    - name: Build and Test
+      run: |
         mkdir build
         cd build
-        cmake ..\
-        cmake --build . --config Release -v
-        ctest -C Release . -R test_rand
-
-    - name: make
-      if: matrix.complier != 'msvc'
-      run: |
-        make test_rand
+        cmake ..
+        cmake --build . --verbose ${{ matrix.cmake_build}}
+        ctest -V . -R test_rand ${{ matrix.cmake_test }}

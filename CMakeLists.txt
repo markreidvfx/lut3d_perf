@@ -16,6 +16,17 @@ if ((${ARCH} STREQUAL "x86" ) OR (${ARCH} STREQUAL "x86_64") )
     enable_language(ASM_NASM)
 endif()
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
+if (NOT MSVC)
+    set(CMAKE_C_FLAGS "-Wall -Wextra")
+    set(CMAKE_C_FLAGS_DEBUG "-g")
+    set(CMAKE_C_FLAGS_RELEASE "-O3")
+endif()
+
+
 add_subdirectory(src)
 
 enable_testing()
