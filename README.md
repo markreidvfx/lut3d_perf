@@ -18,6 +18,7 @@ It would be nice to have a ARM NEON implementation at some point.
 - FFmpeg SSE2 assembly
 
 ## Requirements
+- cmake
 - [yasm](https://yasm.tortall.net)
 - msvc, gcc or clang
 
@@ -33,22 +34,33 @@ Still investigating why.
 
 ## Testing
 
+
 ### Linux / macOS / MSYS2
 
 From a terminal run
 
 ```bash
-make test_rand
-make test_lut1
-make test_lut2
+mkdir build
+cd build
+cmake ..
+cmake --build .
+ctest . -R test_rand -V
+ctest . -R test_lut1 -V
+ctest . -R test_lut2 -V
 ```
 
 ### Windows MSVC
 
 From the **MSVC x64 native tools** command prompt run
 
+NOTE: make sure yasm in your PATH
+
 ```cmd
-build_msvc.bat test_rand
-build_msvc.bat test_lut1
-build_msvc.bat test_lut2
+mkdir build
+cd build
+cmake ..
+cmake --build . --config Release
+ctest . -R test_rand -C Release -V
+ctest . -R test_lut1 -C Release -V
+ctest . -R test_lut2 -C Release -V
 ```
