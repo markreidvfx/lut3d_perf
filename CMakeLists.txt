@@ -4,7 +4,17 @@ project(lut3d_perf
     VERSION 1.0.0
     DESCRIPTION "Performance Tests For Various Tetrahedral 3D Lut Implementations"
     HOMEPAGE_URL https://github.com/markreidvfx/lut3d_perf
-    LANGUAGES C CXX ASM_NASM)
+    LANGUAGES C CXX)
+
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
+include(TargetArch)
+
+target_architecture(ARCH)
+message(STATUS "ARCH: ${ARCH}")
+
+if ((${ARCH} STREQUAL "x86" ) OR (${ARCH} STREQUAL "x86_64") )
+    enable_language(ASM_NASM)
+endif()
 
 add_subdirectory(src)
 

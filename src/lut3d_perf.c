@@ -4,38 +4,6 @@
 #include <stdio.h>
 #include <ctype.h>
 
-#include <immintrin.h>
-
-#ifdef _MSC_VER
-#define get_extended_control_reg _xgetbv
-#else
-
-#define xgetbv_asm(index, eax, edx)                                        \
-    __asm__ (".byte 0x0f, 0x01, 0xd0" : "=a"(eax), "=d"(edx) : "c" (index))
-
-static inline int64_t get_extended_control_reg(int index)
-{
-    int low = 0;
-    int hi = 0;
-    xgetbv_asm(0, low, hi);
-    return  (int64_t)hi << 32 | (int64_t)low;
-}
-#undef xgetbv_asm
-
-// Inline cpuid instruction.  In PIC compilations, %ebx contains the address
-// of the global offset table.  To avoid breaking such executables, this code
-// must preserve that register's value across cpuid instructions.
-#define __cpuid__(index, eax, ebx, ecx, edx)                        \
-    __asm__ volatile (                                          \
-        "mov    %%rbx, %%rsi \n\t"                              \
-        "cpuid               \n\t"                              \
-        "xchg   %%rbx, %%rsi"                                   \
-        : "=a" (eax), "=S" (ebx), "=c" (ecx), "=d" (edx)        \
-        : "0" (index), "2"(0))
-
-
-#endif
-
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
@@ -54,130 +22,23 @@ typedef struct  {
     double elapse;
 } TestResult;
 
-
-#if _WIN32
-#include <windows.h>
-#include <intrin.h>
-#define strdup _strdup
-
-static uint64_t get_timer_frequency()
-{
-    LARGE_INTEGER Result;
-    QueryPerformanceFrequency(&Result);
-    return Result.QuadPart;
-}
-static uint64_t get_timer(void)
-{
-    LARGE_INTEGER Result;
-    QueryPerformanceCounter(&Result);
-    return Result.QuadPart;
-}
-#else
-#include <time.h>
-#include <unistd.h>
-#include <cpuid.h>
-static uint64_t get_timer_frequency()
-{
-    uint64_t Result = 1000000000ull;
-    return Result;
-}
-static uint64_t get_timer(void)
-{
-    struct timespec Spec;
-    clock_gettime(CLOCK_MONOTONIC, &Spec);
-    uint64_t Result = ((uint64_t)Spec.tv_sec * 1000000000ull) + (uint64_t)Spec.tv_nsec;
-    return Result;
-}
-#endif
-
-#include "tetrahedral_ffmpeg_c.h"
-#include "tetrahedral_ffmpeg_asm.h"
-#include "tetrahedral_avx2.h"
-#include "tetrahedral_avx.h"
-
-#include "tetrahedral_sse2.h"
-
-static void cpuid(int index, int *data)
-{
-#ifdef _MSC_VER
-    __cpuid(data, index);
-#else
-    int eax, ebx, ecx, edx;
-    __cpuid__(index, eax, ebx, ecx, edx);
-    data[0] = eax;
-    data[1] = ebx;
-    data[2] = ecx;
-    data[3] = edx;
-#endif
-}
-
-union cpuid_data {
-    int i[4];
-    char c[16];
-    struct {
-        int eax;
-        int ebx;
-        int ecx;
-        int edx;
-    } reg;
-};
-
 typedef struct {
     char name[65];
     int has_sse2;
     int has_avx;
     int has_avx2;
-}CPUFeatures;
+    int has_neon;
+} CPUFeatures;
 
+#include "tetrahedral_ffmpeg_c.h"
 
-static CPUFeatures get_cpu_features()
-{
-    CPUFeatures features = {0};
-    for(int index = 0; index < 3; index++) {
-      cpuid(0x80000002 + index, (int *)(features.name + 16*index));
-    }
-
-    union cpuid_data info;
-    cpuid(0, info.i);
-    int max_std_level = info.i[0];
-
-    if (max_std_level >= 1) {
-        cpuid(1, info.i);
-        if (info.reg.edx & (1 << 26)) {
-            features.has_sse2 = 1;
-        }
-        /* Check OXSAVE and AVX bits */
-        if ((info.reg.ecx & 0x18000000) == 0x18000000) {
-            int64_t xcr = get_extended_control_reg(0);
-            if(xcr & 0x6) {
-                features.has_avx = 1;
-            }
-        }
-    }
-
-    if (max_std_level >= 7) {
-        cpuid(7, info.i);
-        if (features.has_avx  && info.reg.ebx & 0x00000020) {
-            features.has_avx2 = 1;
-        }
-    }
-
-    // disable avx/avx2
-    // features.has_avx = 0;
-    // features.has_avx2 = 0;
-
-    printf("CPU: %s ", features.name);
-    if (features.has_sse2)
-        printf("+sse2");
-    if (features.has_avx)
-        printf("+avx");
-    if (features.has_avx2)
-        printf("+avx2");
-    printf("\n");
-    return features;
-}
-
-
+#if defined(ARCH_X86)
+#include "x86_cpu_info.h"
+#include "tetrahedral_ffmpeg_asm.h"
+#include "tetrahedral_avx2.h"
+#include "tetrahedral_avx.h"
+#include "tetrahedral_sse2.h"
+#endif
 
 static int read_exr(char *filename, EXR *exr)
 {
@@ -598,6 +459,7 @@ int LUT_SIZES[] = {32, 64};
 static LutTestItem LUTS[] = {
     {"ffmpeg_c",                                    apply_lut_c,                           NULL, 0, 0},
     {"ocio_c++",                                           NULL,            apply_lut_ocio_rgba, 0, 0},
+#if defined(ARCH_X86)
     {"ocio_sse2",                                          NULL,       apply_lut_ocio_sse2_rgba, 0, 0},
     {"avx2_planer_intrinsics", apply_lut_planer_intrinsics_avx2,                           NULL, 1, 1},
     {"avx2_rgba_intrinsics",                               NULL, apply_lut_rgba_intrinsics_avx2, 1, 1},
@@ -608,9 +470,22 @@ static LutTestItem LUTS[] = {
     {"ffmpeg_avx2_asm",                      apply_lut_avx2_asm,                           NULL, 1, 1},
     {"ffmpeg_avx_asm",                        apply_lut_avx_asm,                           NULL, 1, 0},
     {"ffmpeg_sse2_asm",                      apply_lut_sse2_asm,                           NULL, 0, 0},
+#endif
 };
 
 #define ARRAY_SIZE(x)  (sizeof(x) / sizeof((x)[0]))
+
+static CPUFeatures get_cpu_features()
+{
+    CPUFeatures features = {0};
+#if defined(ARCH_X86)
+    CPUInfo info = {0};
+    get_cpu_info(&info);
+    features.has_avx = info.flags & X86_CPU_FLAG_AVX;
+    features.has_avx2 = info.flags & X86_CPU_FLAG_AVX2;
+#endif
+    return features;
+}
 
 
 static void nan_nonesense()
@@ -1012,6 +887,9 @@ static void print_usage()
 
 int main(int argc, char *argv[])
 {
+    printf("%s %s\n", CPU_ARCH, get_cpu_model_name());
+    printf("%s %s\n", get_platform_name(), COMPILER_NAME);
+
     if(argc == 1) {
         return random_lut_test();
     }
@@ -1021,6 +899,6 @@ int main(int argc, char *argv[])
         print_usage();
         return -1;
     }
-
+   
     return exr_image_test(argc, argv);
 }

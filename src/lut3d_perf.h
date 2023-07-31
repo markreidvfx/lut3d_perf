@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include "platform_info.h"
 
 #define MAX_LEVEL 256
 #define PRELUT_SIZE 65536

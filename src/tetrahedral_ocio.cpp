@@ -10,13 +10,14 @@
 #include <stdint.h>
 #include "lut3d_perf.h"
 
-#include <emmintrin.h>
-
 extern "C" {
     int apply_lut_ocio_rgba(const LUT3DContext *lut3d, const FloatImageRGBA *src_image, FloatImageRGBA *dst_image);
+}
+#if defined(ARCH_X86)
+#include <emmintrin.h>
+extern "C" {
     int apply_lut_ocio_sse2_rgba(const LUT3DContext *lut3d, const FloatImageRGBA *src_image, FloatImageRGBA *dst_image);
 }
-
 // Macros for alignment declarations
 #define OCIO_SIMD_BYTES 16
 #if defined( _MSC_VER )
@@ -28,7 +29,7 @@ extern "C" {
 #define OCIO_ALIGN(decl) decl __attribute__((aligned(OCIO_SIMD_BYTES)))
 #endif
 
-
+#endif
 // Clamp value a to[min, max]
 // First compare with max, then with min.
 //
@@ -313,6 +314,7 @@ int apply_lut_ocio_rgba(const LUT3DContext *lut3d, const FloatImageRGBA *src_ima
     return 0;
 }
 
+#if defined(ARCH_X86)
 //----------------------------------------------------------------------------
 // RGB channel ordering.
 // Pixels ordered in such a way that the blue coordinate changes fastest,
@@ -668,3 +670,5 @@ int apply_lut_ocio_sse2_rgba(const LUT3DContext *lut3d, const FloatImageRGBA *sr
     }
     return 0;
 }
+
+#endif // defined(ARCH_X86)
