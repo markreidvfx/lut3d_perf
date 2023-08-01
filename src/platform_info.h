@@ -14,8 +14,10 @@
         #define CPU_ARCH "x86"
     #endif
 #elif defined(__aarch64__)
+#define ARCH_ARM
     #define CPU_ARCH "ARM 64-bit"
 #elif defined(__arm__)
+#define ARCH_ARM
     #define CPU_ARCH "ARM"
 #elif defined(__PPC64__)
     #define CPU_ARCH "PowerPC 64-bit"

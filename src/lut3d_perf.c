@@ -38,6 +38,8 @@ typedef struct {
 #include "tetrahedral_avx2.h"
 #include "tetrahedral_avx.h"
 #include "tetrahedral_sse2.h"
+#elif defined(ARCH_ARM)
+#include "tetrahedral_neon.h"
 #endif
 
 static int read_exr(char *filename, EXR *exr)
@@ -470,6 +472,9 @@ static LutTestItem LUTS[] = {
     {"ffmpeg_avx2_asm",                      apply_lut_avx2_asm,                           NULL, 1, 1},
     {"ffmpeg_avx_asm",                        apply_lut_avx_asm,                           NULL, 1, 0},
     {"ffmpeg_sse2_asm",                      apply_lut_sse2_asm,                           NULL, 0, 0},
+#elif defined(ARCH_ARM)
+    {"neon_planer_intrinsics", apply_lut_planer_intrinsics_neon,                           NULL, 0, 0},
+    {"neon_rgba_intrinsics",                               NULL, apply_lut_rgba_intrinsics_neon, 0, 0},
 #endif
 };
 

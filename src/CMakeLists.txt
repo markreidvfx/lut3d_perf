@@ -13,8 +13,12 @@ target_include_directories(tinyexr
 PRIVATE
 deps/miniz)
 
+if (${ARCH} STREQUAL "arm64")
+    list(APPEND SOURCES
+        tetrahedral_neon.c
+    )
 
-if ((${ARCH} STREQUAL "x86" ) OR (${ARCH} STREQUAL "x86_64") )
+elseif ((${ARCH} STREQUAL "x86" ) OR (${ARCH} STREQUAL "x86_64") )
     list(APPEND SOURCES
         x86_cpu_info.c
         tetrahedral_sse2.c
