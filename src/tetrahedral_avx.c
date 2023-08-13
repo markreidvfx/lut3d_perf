@@ -119,7 +119,7 @@ static inline __m256 apply_prelut_avx(const Lut3DContextAVX *ctx, __m256 v, int 
     __m256 scaled = _mm256_mul_ps(_mm256_sub_ps(v, prelut_min), prelut_scale);
 
     // clamp, max first, NAN set to zero
-    __m256 x      = _mm256_min_ps(prelut_max, _mm256_max_ps(zero, scaled));
+    __m256 x      = _mm256_min_ps(prelut_max, _mm256_max_ps(scaled, zero));
     __m256 prev_f = _mm256_floor_ps(x);
     __m256 d      = _mm256_sub_ps(x, prev_f);
     __m256 next_f = _mm256_min_ps(_mm256_add_ps(prev_f, one_f), prelut_max);
@@ -354,9 +354,9 @@ int apply_lut_planer_intrinsics_avx(const LUT3DContext *lut3d, const FloatImage 
             }
 
             // scale and clamp values
-            r = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(zero, _mm256_mul_ps(r, scale_r)));
-            g = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(zero, _mm256_mul_ps(g, scale_g)));
-            b = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(zero, _mm256_mul_ps(b, scale_b)));
+            r = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(_mm256_mul_ps(r, scale_r), zero));
+            g = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(_mm256_mul_ps(g, scale_g), zero));
+            b = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(_mm256_mul_ps(b, scale_b), zero));
 
             c = interp_tetrahedral_avx(&ctx, r, g, b);
 
@@ -450,9 +450,9 @@ int apply_lut_rgba_intrinsics_avx(const LUT3DContext *lut3d, const FloatImageRGB
         }
 
         // scale and clamp values
-        c0.r = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(zero,  _mm256_mul_ps(c0.r, scale_r)));
-        c0.g = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(zero,  _mm256_mul_ps(c0.g, scale_g)));
-        c0.b = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(zero,  _mm256_mul_ps(c0.b, scale_b)));
+        c0.r = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(_mm256_mul_ps(c0.r, scale_r), zero));
+        c0.g = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(_mm256_mul_ps(c0.g, scale_g), zero));
+        c0.b = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(_mm256_mul_ps(c0.b, scale_b), zero));
 
         c1 = interp_tetrahedral_avx(&ctx, c0.r, c0.g, c0.b);
         c0 = rgba_transpose_4x4_4x4_avx(c1.r, c1.g, c1.b, c0.a);
@@ -492,9 +492,9 @@ int apply_lut_rgba_intrinsics_avx(const LUT3DContext *lut3d, const FloatImageRGB
         }
 
         // scale and clamp values
-        c1.r = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(zero,  _mm256_mul_ps(c1.r, scale_r)));
-        c1.g = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(zero,  _mm256_mul_ps(c1.g, scale_g)));
-        c1.b = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(zero,  _mm256_mul_ps(c1.b, scale_b)));
+        c1.r = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(_mm256_mul_ps(c1.r, scale_r), zero));
+        c1.g = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(_mm256_mul_ps(c1.g, scale_g), zero));
+        c1.b = _mm256_min_ps(ctx.lutmax, _mm256_max_ps(_mm256_mul_ps(c1.b, scale_b), zero));
 
         c1 = interp_tetrahedral_avx(&ctx, c1.r, c1.g, c1.b);
 

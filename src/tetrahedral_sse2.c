@@ -109,7 +109,7 @@ static inline __m128 apply_prelut_sse2(const Lut3DContextSSE2 *ctx, __m128 v, in
     __m128 scaled = _mm_mul_ps(_mm_sub_ps(v, prelut_min), prelut_scale);
 
     // clamp, max first, NAN set to zero
-    __m128 x      = _mm_min_ps(prelut_max, _mm_max_ps(zero, scaled));
+    __m128 x      = _mm_min_ps(prelut_max, _mm_max_ps(scaled, zero));
     __m128 prev_f = floor_ps_sse2(x);
     __m128 d      = _mm_sub_ps(x, prev_f);
     __m128 next_f = _mm_min_ps(_mm_add_ps(prev_f, one_f), prelut_max);
@@ -328,9 +328,9 @@ int apply_lut_planer_intrinsics_sse2(const LUT3DContext *lut3d, const FloatImage
             }
 
             // scale and clamp values
-            r = _mm_min_ps(ctx.lutmax, _mm_max_ps(zero, _mm_mul_ps(r, scale_r)));
-            g = _mm_min_ps(ctx.lutmax, _mm_max_ps(zero, _mm_mul_ps(g, scale_g)));
-            b = _mm_min_ps(ctx.lutmax, _mm_max_ps(zero, _mm_mul_ps(b, scale_b)));
+            r = _mm_min_ps(ctx.lutmax, _mm_max_ps(_mm_mul_ps(r, scale_r), zero));
+            g = _mm_min_ps(ctx.lutmax, _mm_max_ps(_mm_mul_ps(g, scale_g), zero));
+            b = _mm_min_ps(ctx.lutmax, _mm_max_ps(_mm_mul_ps(b, scale_b), zero));
 
             c = interp_tetrahedral_sse2(&ctx, r, g, b);
 
@@ -413,9 +413,9 @@ int apply_lut_rgba_intrinsics_sse2(const LUT3DContext *lut3d, const FloatImageRG
         }
 
          // scale and clamp values
-        c.r = _mm_min_ps(ctx.lutmax, _mm_max_ps(zero, _mm_mul_ps(c.r, scale_r)));
-        c.g = _mm_min_ps(ctx.lutmax, _mm_max_ps(zero, _mm_mul_ps(c.g, scale_g)));
-        c.b = _mm_min_ps(ctx.lutmax, _mm_max_ps(zero, _mm_mul_ps(c.b, scale_b)));
+        c.r = _mm_min_ps(ctx.lutmax, _mm_max_ps(_mm_mul_ps(c.r, scale_r), zero));
+        c.g = _mm_min_ps(ctx.lutmax, _mm_max_ps(_mm_mul_ps(c.g, scale_g), zero));
+        c.b = _mm_min_ps(ctx.lutmax, _mm_max_ps(_mm_mul_ps(c.b, scale_b), zero));
 
         c2 = interp_tetrahedral_sse2(&ctx, c.r, c.g, c.b);
 
@@ -455,9 +455,9 @@ int apply_lut_rgba_intrinsics_sse2(const LUT3DContext *lut3d, const FloatImageRG
         }
 
         // scale and clamp values
-        c.r = _mm_min_ps(ctx.lutmax, _mm_max_ps(zero, _mm_mul_ps(c.r, scale_r)));
-        c.g = _mm_min_ps(ctx.lutmax, _mm_max_ps(zero, _mm_mul_ps(c.g, scale_g)));
-        c.b = _mm_min_ps(ctx.lutmax, _mm_max_ps(zero, _mm_mul_ps(c.b, scale_b)));
+        c.r = _mm_min_ps(ctx.lutmax, _mm_max_ps(_mm_mul_ps(c.r, scale_r), zero));
+        c.g = _mm_min_ps(ctx.lutmax, _mm_max_ps(_mm_mul_ps(c.g, scale_g), zero));
+        c.b = _mm_min_ps(ctx.lutmax, _mm_max_ps(_mm_mul_ps(c.b, scale_b), zero));
 
         c2 = interp_tetrahedral_sse2(&ctx, c.r, c.g, c.b);
 
