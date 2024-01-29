@@ -27,6 +27,7 @@ typedef struct {
     int has_sse2;
     int has_avx;
     int has_avx2;
+    int has_avx512;
     int has_neon;
 } CPUFeatures;
 
@@ -35,6 +36,7 @@ typedef struct {
 #if defined(ARCH_X86)
 #include "x86_cpu_info.h"
 #include "tetrahedral_ffmpeg_asm.h"
+#include "tetrahedral_avx512.h"
 #include "tetrahedral_avx2.h"
 #include "tetrahedral_avx.h"
 #include "tetrahedral_sse2.h"
@@ -449,6 +451,7 @@ typedef struct {
     apply_lut_rgba_func *apply_lut_rgba;
     int avx;
     int avx2;
+    int avx512;
 } LutTestItem;
 
 int apply_lut_ocio_rgba(const LUT3DContext *lut3d, const FloatImageRGBA *src_image, FloatImageRGBA *dst_image);
@@ -457,19 +460,21 @@ int apply_lut_ocio_sse2_rgba(const LUT3DContext *lut3d, const FloatImageRGBA *sr
 int LUT_SIZES[] = {32, 64};
 
 static LutTestItem LUTS[] = {
-    {"ffmpeg_c",                                    apply_lut_c,                           NULL, 0, 0},
-    {"ocio_c++",                                           NULL,            apply_lut_ocio_rgba, 0, 0},
+    {"ffmpeg_c",                                        apply_lut_c,                             NULL, 0, 0, 0},
+    {"ocio_c++",                                               NULL,              apply_lut_ocio_rgba, 0, 0, 0},
 #if defined(ARCH_X86)
-    {"ocio_sse2",                                          NULL,       apply_lut_ocio_sse2_rgba, 0, 0},
-    {"avx2_planer_intrinsics", apply_lut_planer_intrinsics_avx2,                           NULL, 1, 1},
-    {"avx2_rgba_intrinsics",                               NULL, apply_lut_rgba_intrinsics_avx2, 1, 1},
-    {"avx_planer_intrinsics",   apply_lut_planer_intrinsics_avx,                           NULL, 1, 0},
-    {"avx_rgba_intrinsics",                                NULL,  apply_lut_rgba_intrinsics_avx, 1, 0},
-    {"sse2_planer_intrinsics", apply_lut_planer_intrinsics_sse2,                           NULL, 0, 0},
-    {"sse2_rgba_intrinsics",                               NULL, apply_lut_rgba_intrinsics_sse2, 0, 0},
-    {"ffmpeg_avx2_asm",                      apply_lut_avx2_asm,                           NULL, 1, 1},
-    {"ffmpeg_avx_asm",                        apply_lut_avx_asm,                           NULL, 1, 0},
-    {"ffmpeg_sse2_asm",                      apply_lut_sse2_asm,                           NULL, 0, 0},
+    {"ocio_sse2",                                              NULL,         apply_lut_ocio_sse2_rgba, 0, 0, 0},
+    {"avx512_planer_intrinsics", apply_lut_planer_intrinsics_avx512,                             NULL, 1, 1, 1},
+    {"avx512_rgba_intrinsics",                                 NULL, apply_lut_rgba_intrinsics_avx512, 1, 1, 1},
+    {"avx2_planer_intrinsics",     apply_lut_planer_intrinsics_avx2,                             NULL, 1, 1, 0},
+    {"avx2_rgba_intrinsics",                                   NULL,   apply_lut_rgba_intrinsics_avx2, 1, 1, 0},
+    {"avx_planer_intrinsics",       apply_lut_planer_intrinsics_avx,                             NULL, 1, 0, 0},
+    {"avx_rgba_intrinsics",                                    NULL,    apply_lut_rgba_intrinsics_avx, 1, 0, 0},
+    {"sse2_planer_intrinsics",     apply_lut_planer_intrinsics_sse2,                             NULL, 0, 0, 0},
+    {"sse2_rgba_intrinsics",                                   NULL,   apply_lut_rgba_intrinsics_sse2, 0, 0, 0},
+    {"ffmpeg_avx2_asm",                          apply_lut_avx2_asm,                             NULL, 1, 1, 0},
+    {"ffmpeg_avx_asm",                            apply_lut_avx_asm,                             NULL, 1, 0, 0},
+    {"ffmpeg_sse2_asm",                          apply_lut_sse2_asm,                             NULL, 0, 0, 0},
 #endif
 };
 
@@ -483,6 +488,7 @@ static CPUFeatures get_cpu_features()
     get_cpu_info(&info);
     features.has_avx = info.flags & X86_CPU_FLAG_AVX;
     features.has_avx2 = info.flags & X86_CPU_FLAG_AVX2;
+    features.has_avx512 = info.flags & X86_CPU_FLAG_AVX512;
 #endif
     return features;
 }
@@ -631,6 +637,11 @@ static int random_lut_test()
             uint64_t end = 0;
 
             LutTestItem *test = &LUTS[i];
+
+            if (test->avx2 && !features.has_avx512) {
+                printf("skipping %s cpu does not have avx512\n", test->name);
+                continue;
+            }
 
             if (test->avx2 && !features.has_avx2) {
                 printf("skipping %s cpu does not have avx2\n", test->name);
@@ -813,6 +824,11 @@ static int exr_image_test(int argc, char *argv[])
         uint64_t dur = 0;
         LutTestItem *test = &LUTS[i];
 
+        if (test->avx512 && !features.has_avx512) {
+            printf("skipping %s cpu does not have avx512\n", test->name);
+            continue;
+        }
+
         if (test->avx2 && !features.has_avx2) {
             printf("skipping %s cpu does not have avx2\n", test->name);
             continue;
@@ -899,6 +915,6 @@ int main(int argc, char *argv[])
         print_usage();
         return -1;
     }
-   
+
     return exr_image_test(argc, argv);
 }

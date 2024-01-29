@@ -10,6 +10,7 @@ It would be nice to have a ARM NEON implementation at some point.
 - FFmpeg c
 - OpenColorIO c++
 - OpenColorIO SSE2
+- AVX512 intrinsics
 - AVX2 intrinsics
 - AVX intrinsics
 - SSE2 intrinsics

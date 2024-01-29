@@ -20,6 +20,7 @@ if ((${ARCH} STREQUAL "x86" ) OR (${ARCH} STREQUAL "x86_64") )
         tetrahedral_sse2.c
         tetrahedral_avx.c
         tetrahedral_avx2.c
+        tetrahedral_avx512.c
     )
     set(ASM_ARGS
         -DHAVE_ALIGNED_STACK=1
@@ -38,9 +39,11 @@ if ((${ARCH} STREQUAL "x86" ) OR (${ARCH} STREQUAL "x86_64") )
     if (MSVC)
         set(AVX_ARGS /arch:AVX)
         set(AVX2_ARGS /arch:AVX2)
+        set(AVX512_ARGS /arch:AVX512)
     else()
         set(AVX_ARGS -mavx)
         set(AVX2_ARGS -mavx2 -mfma)
+        set(AVX512_ARGS -mavx512f)
     endif()
 
     set_property(SOURCE lut3d.asm APPEND PROPERTY COMPILE_OPTIONS ${ASM_ARGS})
@@ -50,6 +53,7 @@ if ((${ARCH} STREQUAL "x86" ) OR (${ARCH} STREQUAL "x86_64") )
 
     set_property(SOURCE tetrahedral_avx.c APPEND PROPERTY COMPILE_OPTIONS ${AVX_ARGS})
     set_property(SOURCE tetrahedral_avx2.c APPEND PROPERTY COMPILE_OPTIONS ${AVX2_ARGS})
+    set_property(SOURCE tetrahedral_avx512.c APPEND PROPERTY COMPILE_OPTIONS ${AVX512_ARGS})
 
 endif()
 

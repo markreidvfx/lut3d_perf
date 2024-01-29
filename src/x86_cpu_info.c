@@ -106,10 +106,10 @@ void get_cpu_info(CPUInfo *out)
             flags |= X86_CPU_FLAG_SSE42;
 
         /* Check OSXSAVE and AVX bits */
-        if (info.reg.ecx & 0x18000000)
+        if ((info.reg.ecx & 0x18000000) == 0x18000000)
         {
             xcr = xgetbv();
-            if(xcr & 0x6) {
+            if((xcr & 0x6) == 0x6) {
                 flags |= X86_CPU_FLAG_AVX;
 
                 if(info.reg.ecx & 0x20000000) {
@@ -128,7 +128,7 @@ void get_cpu_info(CPUInfo *out)
 
         /* OPMASK/ZMM state */
         if ((xcr & 0xe0) == 0xe0) {
-            if ((flags & X86_CPU_FLAG_AVX2) && (info.reg.ebx & 0xd0030000))
+            if ((flags & X86_CPU_FLAG_AVX2) && ((info.reg.ebx & 0xd0030000) == 0xd0030000))
                 flags |= X86_CPU_FLAG_AVX512;
         }
     }
