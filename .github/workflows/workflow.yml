@@ -52,11 +52,21 @@ jobs:
       if: matrix.complier == 'msvc'
       run: |
         choco install yasm
-
-    - name: Build and Test
+    - name: Build
       run: |
         mkdir build
         cd build
         cmake ..
         cmake --build . --verbose ${{ matrix.cmake_build}}
+    - name: Test Rand
+      run: |
+        cd build
         ctest -V . -R test_rand ${{ matrix.cmake_test }}
+    - name: Test Lut1
+      run: |
+        cd build
+        ctest -V . -R test_lut1 ${{ matrix.cmake_test }}
+    - name: Test Lut2
+      run: |
+        cd build
+        ctest -V . -R test_lut2 ${{ matrix.cmake_test }}
